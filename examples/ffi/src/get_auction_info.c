@@ -4,7 +4,7 @@
 
 #define RESPONSE_BUFFER_LEN 1048576
 #define ERROR_LEN 255
-#define NODE_ADDRESS "http://localhost:50101"
+#define NODE_ADDRESS "http://localhost:11101"
 #define RPC_ID "1"
 #define BLOCK_ID ""
 #define VERBOSE 0

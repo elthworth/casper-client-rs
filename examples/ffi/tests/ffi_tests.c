@@ -17,9 +17,9 @@ void test_should_be_no_last_error_on_startup(void) {
 
 void test_should_get_last_error_after_bad_request(void) {
     casper_deploy_params_t deploy_params = {0};
-    deploy_params.secret_key = "resources/local/secret_keys/node-1.pem";
+    deploy_params.secret_key = "resources/test.pem";
     deploy_params.ttl = "10s";
-    deploy_params.chain_name = "casper-charlie-testnet1";
+    deploy_params.chain_name = "casper-net-1";
     deploy_params.gas_price = "11";
 
     casper_payment_params_t payment_params = {0};
@@ -52,14 +52,14 @@ void test_should_get_last_error_after_bad_request(void) {
 
 void test_keygen_should_work_with_valid_algorithm(void) {
     casper_error_t success =
-        casper_keygen("./casper_keygen_test", "ed25519", false);
+        casper_keygen("target/casper_keygen_test", "ed25519", true);
 
     TEST_ASSERT_EQUAL_INT(CASPER_SUCCESS, success);
 }
 
 void test_keygen_should_fail_with_invalid_algorithm(void) {
     casper_error_t success =
-        casper_keygen("./casper_keygen_test", "lolwut", false);
+        casper_keygen("target/casper_keygen_test", "lolwut", true);
 
     TEST_ASSERT_NOT_EQUAL_INT(CASPER_SUCCESS, success);
 }

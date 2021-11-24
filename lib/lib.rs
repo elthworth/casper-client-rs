@@ -1,6 +1,6 @@
 //! # Casper node client library
 #![doc(
-    html_root_url = "https://docs.rs/casper-client/0.1.0",
+    html_root_url = "https://docs.rs/casper-client/1.4.2",
     html_favicon_url = "https://raw.githubusercontent.com/CasperLabs/casper-node/master/images/CasperLabs_Logo_Favicon_RGB_50px.png",
     html_logo_url = "https://raw.githubusercontent.com/CasperLabs/casper-node/master/images/CasperLabs_Logo_Symbol_RGB.png",
     test(attr(forbid(warnings)))
@@ -1426,7 +1426,7 @@ mod param_tests {
 
         fn test_value() -> DeployStrParams<'static> {
             DeployStrParams {
-                secret_key: "../resources/local/secret_keys/node-1.pem",
+                secret_key: "resources/test.pem",
                 ttl: "10s",
                 chain_name: "casper-test-chain-name-1",
                 gas_price: "1",

@@ -14,21 +14,21 @@ endif()
 
 # The root path to install casper_client and Unity test lib.
 set(InstallPath "${CMAKE_CURRENT_BINARY_DIR}/installed")
-# The casper_client library's name - e.g. 'libcasper_client.so' on Unix.
+# The casper-client library's name - e.g. 'libcasper_client.so' on Unix.
 set(ClientLibName ${CMAKE_SHARED_LIBRARY_PREFIX}casper_client${CMAKE_SHARED_LIBRARY_SUFFIX})
-# The initial build location of the casper_client library after being built by cargo.
-set(ClientBuiltLibSource "${CMAKE_CURRENT_LIST_DIR}/../../../target/${TARGET_DIR}/${ClientLibName}")
-# The location of the casper_client library after being moved to the ffi examples build directory.
+# The initial build location of the casper-client library after being built by cargo.
+set(ClientBuiltLibSource "${CMAKE_CURRENT_LIST_DIR}/../../target/${TARGET_DIR}/${ClientLibName}")
+# The location of the casper-client library after being moved to the ffi examples build directory.
 set(ClientBuiltLibTarget "${InstallPath}/lib/${ClientLibName}")
-# The initial location of the generated header for the casper_client library.
-set(ClientHeadersDirSource "${CMAKE_CURRENT_LIST_DIR}/../../../target/headers")
-# The location of the casper_client header after being moved to the ffi examples build directory.
+# The initial location of the generated header for the casper-client library.
+set(ClientHeadersDirSource "${CMAKE_CURRENT_LIST_DIR}/../../target/headers")
+# The location of the casper-client header after being moved to the ffi examples build directory.
 set(ClientHeadersDirTarget "${InstallPath}/include")
 
-# This target builds the casper_client library and copies it and its header(s) to our build directory.
+# This target builds the casper-client library and copies it and its header(s) to our build directory.
 add_custom_target(
     ClientSharedLibrary
-    COMMENT "Building casper_client library and copying from '${ClientBuiltLibSource}' to '${ClientBuiltLibTarget}'."
+    COMMENT "Building casper-client library and copying from '${ClientBuiltLibSource}' to '${ClientBuiltLibTarget}'."
     COMMAND "${Cargo}" build --lib $<$<CONFIG:Release>:--release>
     COMMAND ${CMAKE_COMMAND} -E copy "${ClientBuiltLibSource}" "${ClientBuiltLibTarget}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${ClientHeadersDirSource}" "${ClientHeadersDirTarget}"

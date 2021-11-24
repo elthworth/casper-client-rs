@@ -17,7 +17,7 @@ mod query_global_state;
 
 use std::process;
 
-use clap::{crate_description, crate_version, App};
+use clap::{crate_version, App};
 
 use casper_client::Error;
 use casper_node::rpcs::{
@@ -65,7 +65,7 @@ enum DisplayOrder {
 fn cli<'a, 'b>() -> App<'a, 'b> {
     App::new(APP_NAME)
         .version(crate_version!())
-        .about(crate_description!())
+        .about("A client for interacting with the Casper network")
         .subcommand(PutDeploy::build(DisplayOrder::PutDeploy as usize))
         .subcommand(MakeDeploy::build(DisplayOrder::MakeDeploy as usize))
         .subcommand(SignDeploy::build(DisplayOrder::SignDeploy as usize))

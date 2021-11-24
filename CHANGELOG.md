@@ -14,11 +14,26 @@ All notable changes to this project will be documented in this file.  The format
 ## [Unreleased]
 
 
-## [1.4.2] 2021-11-11
+
+## [1.4.2] - 2021-11-13
+
+### Changed
+* Support checksummed-hex encoding of various types like `PublicKey` and `AccountHash`.
+
+
+
+## [1.4.1] - 2021-10-23
+
+No changes.
+
+
+
+## [1.4.0] - 2021-10-21 [YANKED]
 
 ### Added
 * RPM package build and publish.
 * New client binary command `get-validator-changes` that returns status changes of active validators.
+* Add `keygen::generate_files` to FFI.
 
 ### Changed
 * Support building and testing using stable Rust.
@@ -29,11 +44,34 @@ All notable changes to this project will be documented in this file.  The format
 
 
 
-## [1.3.0] - 2021-07-21
+## [1.3.4] - 2021-10-14
+
+No changes.
+
+
+
+## [1.3.3] - 2021-10-14
+
+No changes.
+
+
+
+## [1.3.2] - 2021-08-02
+
+No changes.
+
+
+
+## [1.3.1] - 2021-07-25
+
+No changes.
+
+
+
+## [1.3.0] - 2021-07-20
 
 ### Added
 * Add support for retrieving historical auction information via the addition of an optional `--block-identifier` arg in the `get-auction-info` subcommand.
-* Add `keygen::generate_files` to FFI.
 
 ### Changed
 * Change `account-address` subcommand to output properly formatted string.
@@ -42,6 +80,13 @@ All notable changes to this project will be documented in this file.  The format
 * Change `make-deploy`, `make-transfer` and `sign-deploy` to use transactional file writing for enhanced safety and reliability.
 * Update pinned version of Rust to `nightly-2021-06-17`
 * Change the Rust interface of the client library to expose `async` functions, instead of running an executor internally.
+
+
+
+## [1.2.1] - 2021-07-17
+
+### Changed
+* Minor cleanup.
 
 
 
@@ -84,11 +129,18 @@ No changes.
 
 
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0
-[unreleased]: https://github.com/casper-network/casper-node/compare/37d561634adf73dab40fffa7f1f1ee47e80bf8a1...dev
-[1.4.2]: https://github.com/casper-network/casper-node/compare/v1.3.0...37d561634adf73dab40fffa7f1f1ee47e80bf8a1
-[1.3.0]: https://github.com/casper-network/casper-node/compare/v1.2.0...v1.3.0
-[1.2.0]: https://github.com/casper-network/casper-node/compare/v1.1.1...v1.2.0
-[1.1.1]: https://github.com/casper-network/casper-node/compare/v1.0.1...v1.1.1
-[1.1.0]: https://github.com/casper-network/casper-node/compare/v1.0.1...v1.1.1
-[1.0.1]: https://github.com/casper-network/casper-node/compare/v1.0.0...v1.0.1
-[1.0.0]: https://github.com/casper-network/casper-node/releases/tag/v1.0.0
+[unreleased]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.2...main
+[1.4.2]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.1...v1.4.2
+[1.4.1]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.3.4...v1.4.0
+[1.3.4]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.3.3...v1.3.4
+[1.3.3]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.3.2...v1.3.3
+[1.3.2]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.3.1...v1.3.2
+[1.3.1]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.2.1...v1.3.0
+[1.2.1]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.2.0...v1.2.1
+[1.2.0]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.1.1...v1.2.0
+[1.1.1]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.0.1...v1.1.0
+[1.0.1]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/casper-ecosystem/casper-client-rs/tree/v1.0.0

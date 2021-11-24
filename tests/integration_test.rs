@@ -254,7 +254,7 @@ mod deploy_params {
 
     pub fn test_data_valid() -> DeployStrParams<'static> {
         DeployStrParams {
-            secret_key: "../resources/local/secret_keys/node-1.pem",
+            secret_key: "resources/test.pem",
             ttl: "10s",
             chain_name: "casper-test-chain-name-1",
             gas_price: "1",
@@ -1000,7 +1000,7 @@ mod sign_deploy {
         assert!(matches!(
             casper_client::sign_deploy_file(
                 unsigned_file_path.to_str().unwrap(),
-                "../resources/local/secret_keys/node-1.pem",
+                "resources/test.pem",
                 signed_file_path.to_str().unwrap(),
                 false
             ),
@@ -1026,7 +1026,7 @@ mod sign_deploy {
         assert!(matches!(
             casper_client::sign_deploy_file(
                 unsigned_file_path.to_str().unwrap(),
-                "../resources/local/secret_keys/node-1.pem",
+                "resources/test.pem",
                 "",
                 false
             ),
@@ -1077,7 +1077,7 @@ mod sign_deploy {
         assert!(matches!(
             casper_client::sign_deploy_file(
                 unsigned_file_path.to_str().unwrap(),
-                "../resources/local/secret_keys/node-1.pem",
+                "resources/test.pem",
                 signed_file_path.to_str().unwrap(),
                 false
             ),
@@ -1090,7 +1090,7 @@ mod sign_deploy {
         assert!(matches!(
             casper_client::sign_deploy_file(
                 unsigned_file_path.to_str().unwrap(),
-                "../resources/local/secret_keys/node-1.pem",
+                "resources/test.pem",
                 signed_file_path.to_str().unwrap(),
                 false
             ),
@@ -1122,7 +1122,7 @@ mod sign_deploy {
         assert!(matches!(
             casper_client::sign_deploy_file(
                 unsigned_file_path.to_str().unwrap(),
-                "../resources/local/secret_keys/node-1.pem",
+                "resources/test.pem",
                 signed_file_path.to_str().unwrap(),
                 false
             ),
@@ -1131,7 +1131,7 @@ mod sign_deploy {
         assert!(matches!(
             casper_client::sign_deploy_file(
                 unsigned_file_path.to_str().unwrap(),
-                "../resources/local/secret_keys/node-1.pem",
+                "resources/test.pem",
                 signed_file_path.to_str().unwrap(),
                 true
             ),

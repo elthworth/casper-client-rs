@@ -501,7 +501,7 @@ mod tests {
 
     pub fn deploy_params() -> DeployStrParams<'static> {
         DeployStrParams {
-            secret_key: "../resources/local/secret_keys/node-1.pem",
+            secret_key: "resources/test.pem",
             ttl: "10s",
             chain_name: "casper-test-chain-name-1",
             gas_price: "1",

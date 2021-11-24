@@ -6,7 +6,7 @@ fn main() {
         use cbindgen::{Builder, Language};
 
         let output_file = format!(
-            "{}/../../../../headers/casper_client.h",
+            "{}/../../../headers/casper_client.h",
             env::var("OUT_DIR").expect("should have env var OUT_DIR set"),
         );
 

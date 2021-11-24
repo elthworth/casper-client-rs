@@ -1,14 +1,14 @@
-# casper_client FFI examples
+# casper-client FFI examples
 
-It's possible to use the `casper_client` library from C:
+It's possible to use the `casper-client` library from C:
 
 
 ## Building with CMake
 
-To build the examples, from the root of `casper-node` run:
+To build the examples, from the root of `casper-client-rs` run:
 
 ```
-cmake -Hclient/examples/ffi -Btarget/build -DCMAKE_BUILD_TYPE=Debug
+cmake -Hexamples/ffi -Btarget/build -DCMAKE_BUILD_TYPE=Debug
 cmake --build target/build
 ```
 

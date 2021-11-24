@@ -1,6 +1,6 @@
 # casper-client
 
-A client for interacting with the Casper network.
+A client library and binary for interacting with the Casper network.
 
 
 ## Running the client
@@ -8,7 +8,6 @@ A client for interacting with the Casper network.
 The client runs in one of several modes, each mode performing a single action. To see all available commands:
 
 ```
-cd client
 cargo run --release -- help
 ```
 
@@ -26,25 +25,38 @@ FLAGS:
     -V, --version    Prints version information
 
 SUBCOMMANDS:
-    put-deploy             Creates a deploy and sends it to the network for execution
-    make-deploy            Creates a deploy and outputs it to a file or stdout. As a file, the deploy can
-                           subsequently be signed by other parties using the 'sign-deploy' subcommand and then sent
-                           to the network for execution using the 'send-deploy' subcommand
-    sign-deploy            Reads a previously-saved deploy from a file, cryptographically signs it, and outputs it
-                           to a file or stdout
-    send-deploy            Reads a previously-saved deploy from a file and sends it to the network for execution
-    transfer               Transfers funds between purses
-    get-deploy             Retrieves a deploy from the network
-    get-block              Retrieves a block from the network
-    get-block-transfers    Retrieves all transfers for a block from the network
-    list-deploys           Retrieves the list of all deploy hashes in a given block
-    get-state-root-hash    Retrieves a state root hash at a given block
-    query-global-state     Retrieves a stored value from the network
-    get-balance            Retrieves a purse's balance from the network
-    get-auction-info       Retrieves the bids and validators as of the most recently added block
-    keygen                 Generates account key files in the given directory
-    generate-completion    Generates a shell completion script
-    help                   Prints this message or the help of the given subcommand(s)
+    put-deploy                      Creates a deploy and sends it to the network for execution
+    make-deploy                     Creates a deploy and outputs it to a file or stdout. As a file, the deploy can
+                                    subsequently be signed by other parties using the 'sign-deploy' subcommand and
+                                    then sent to the network for execution using the 'send-deploy' subcommand
+    sign-deploy                     Reads a previously-saved deploy from a file, cryptographically signs it, and
+                                    outputs it to a file or stdout
+    send-deploy                     Reads a previously-saved deploy from a file and sends it to the network for
+                                    execution
+    transfer                        Transfers funds between purses
+    make-transfer                   Creates a transfer deploy and outputs it to a file or stdout. As a file, the
+                                    deploy can subsequently be signed by other parties using the 'sign-deploy'
+                                    subcommand and then sent to the network for execution using the 'send-deploy'
+                                    subcommand
+    get-deploy                      Retrieves a deploy from the network
+    get-block                       Retrieves a block from the network
+    get-block-transfers             Retrieves all transfers for a block from the network
+    list-deploys                    Retrieves the list of all deploy hashes in a given block
+    get-state-root-hash             Retrieves a state root hash at a given block
+    query-global-state              Retrieves a stored value from the network using either the state root hash or
+                                    block hash
+    get-dictionary-item             Query for values managed in a dictionary
+    get-balance                     Retrieves a purse's balance from the network
+    get-account-info                Retrieve account information from the network
+    get-era-info-by-switch-block    Retrieves era information from the network
+    get-auction-info                Returns the bids and validators as of either a specific block (by height or
+                                    hash), or the most recently added block
+    get-validator-changes           Retrieves status changes of active validators
+    keygen                          Generates account key files in the given directory
+    generate-completion             Generates a shell completion script
+    list-rpcs                       List all currently supported RPCs
+    account-address                 Generates an account hash from a given public key
+    help                            Prints this message or the help of the given subcommand(s)
 ```
 </details>
 
@@ -65,7 +77,7 @@ USAGE:
     casper-client keygen [FLAGS] [OPTIONS] [PATH]
 
 FLAGS:
-    -f               If this flag is passed, any existing output files will be overwritten. Without this flag, if any
+    -f, --force      If this flag is passed, any existing output files will be overwritten. Without this flag, if any
                      output file exists, no output files will be generated and the command will fail
     -h, --help       Prints help information
     -V, --version    Prints version information
@@ -91,14 +103,16 @@ cargo run --release -- keygen $HOME/.client_keys
 
 ## Interacting with a local node
 
-Many client commands require to send HTTP requests and receive responses. To do this with a local node running on the
-same machine, follow the instructions in [the `nctl` README](../utils/nctl/README.md) to set up a local test network.
+Many client commands require sending HTTP requests and receiving responses. To do this with a local node running on the
+same machine, follow the instructions in
+[the `nctl` README](https://github.com/casper-network/casper-node/tree/dev/utils/nctl#readme) to set up a local test
+network.
 
 Ensure the network has fully started before running client commands. This can be determined by running
 `nctl-view-node-peers` and checking each node has connections to all others.
 
 For client commands requiring a node address (specified via the `--node-address` or `-n` arg), the default value is
-`http://localhost:7777`, which is the address for a real network node.  The `--node-address=http://localhost:50101` 
+`http://localhost:7777`, which is the address for a real network node.  The `--node-address=http://localhost:11101` 
 argument must be included for the address of the first node of a testnet started via `nctl`.
 
 
@@ -120,12 +134,12 @@ node 3, and that we'll pay a maximum of 10,000 tokens to execute this deploy:
 
 ```
 cargo run --release -- transfer \
-    --node-address=http://localhost:50101 \
-    --secret-key=../utils/nctl/assets/net-1/nodes/node-3/keys/secret_key.pem \
+    --node-address=http://localhost:11101 \
+    --secret-key=../casper-node/utils/nctl/assets/net-1/nodes/node-3/keys/secret_key.pem \
     --amount=1234567 \
     --target-account=$PUBLIC_KEY \
     --chain-name=casper-net-1 \
-    --payment-amount=10000
+    --payment-amount=3000000000
 ```
 
 <details><summary>example output</summary>
@@ -153,7 +167,7 @@ To see information about a deploy sent to the network via `transfer`, `put-deplo
 For example, to see if our previous `transfer` command generated a deploy which was executed by the network:
 
 ```
-cargo run --release -- get-deploy --node-address=http://localhost:50101 c42210759368a07a1b1ff4f019f7e77e7c9eaf2961b8c9dfc4237ea2218246c9
+cargo run --release -- get-deploy --node-address=http://localhost:11101 c42210759368a07a1b1ff4f019f7e77e7c9eaf2961b8c9dfc4237ea2218246c9
 ```
 
 <details><summary>example output</summary>
@@ -262,7 +276,7 @@ To see information about a `Block` created by the network, you can use `get-bloc
 
 ```
 cargo run --release -- get-block \
-    --node-address=http://localhost:50101 \
+    --node-address=http://localhost:11101 \
     --block-hash=80a09df67f45bfb290c8f36021daf2fb898587a48fa0e4f7c506202ae8f791b8
 ```
 
@@ -310,7 +324,7 @@ To retrieve all `Transfer` transactions processed in a `Block` created by the ne
 
 ```
 cargo run --release -- get-block-transfers \
-    --node-address=http://localhost:50101 \
+    --node-address=http://localhost:11101 \
     --block-hash=80a09df67f45bfb290c8f36021daf2fb898587a48fa0e4f7c506202ae8f791b8
 ```
 
@@ -347,7 +361,7 @@ stored under our new account's public key:
 
 ```
 cargo run --release -- query-global-state \
-    --node-address=http://localhost:50101 \
+    --node-address=http://localhost:11101 \
     --state-root-hash=242666f5959e6a51b7a75c23264f3cb326eecd6bec6dbab147f5801ec23daed6 \
     --key=$PUBLIC_KEY
 ```
@@ -391,7 +405,7 @@ This can be done via `get-balance`. For example, to get the balance of the main 
 
 ```
 cargo run --release -- get-balance \
-    --node-address=http://localhost:50101 \
+    --node-address=http://localhost:11101 \
     --state-root-hash=242666f5959e6a51b7a75c23264f3cb326eecd6bec6dbab147f5801ec23daed6 \
     --purse-uref=uref-09480c3248ef76b603d386f3f4f8a5f87f597d4eaffd475433f861af187ab5db-007
 ```
@@ -422,6 +436,8 @@ unit value `()`. This makes the `get-balance` subcommand particularly useful.
 The `lib` directory contains source for the client library, which may be called directly rather than through the CLI
 binary. The CLI app `casper-client` makes use of this library to implement its functionality.
 
+---
+
 
 ## Client library C wrapper
 
@@ -430,4 +446,11 @@ can then be leveraged to build bindings for the library in any language that can
 
 The feature is named `ffi` and is enabled by default.
 
-See `examples/ffi/README.md` for more information.
+See [the examples README](examples/ffi/README.md) for more information.
+
+---
+
+
+## License
+
+Licensed under the [Apache License Version 2.0](LICENSE).

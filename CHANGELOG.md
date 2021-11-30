@@ -13,6 +13,9 @@ All notable changes to this project will be documented in this file.  The format
 
 ## [Unreleased]
 
+### Fixed
+* Restore the `-p` short form of `--public-key` arg for `get-account-info` and `account-address` subcommands.
+
 
 
 ## [1.4.2] - 2021-11-13

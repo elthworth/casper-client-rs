@@ -258,6 +258,7 @@ pub(super) mod public_key {
     use super::*;
 
     const ARG_NAME: &str = "public-key";
+    const ARG_SHORT: &str = "p";
     const IS_REQUIRED: bool = true;
     const ARG_HELP: &str =
         "This must be a properly formatted public key. The public key may instead be read in from \
@@ -266,7 +267,7 @@ pub(super) mod public_key {
         \"public_key_hex\" or \"public_key.pem\"";
 
     pub fn arg(order: usize) -> Arg<'static, 'static> {
-        sealed_public_key::arg(order, ARG_NAME, ARG_HELP, IS_REQUIRED)
+        sealed_public_key::arg(order, ARG_NAME, ARG_HELP, IS_REQUIRED).short(ARG_SHORT)
     }
 
     pub fn get(matches: &ArgMatches) -> Result<String, Error> {
@@ -283,10 +284,10 @@ pub(super) mod session_account {
     const IS_REQUIRED: bool = false;
     const ARG_HELP: &str =
         "The hex-encoded public key of the account context under which the session code will be
-        executed. This must be a properly formatted public key. The public key may instead be read in from \
-        a file, in which case enter the path to the file as the --session-account argument. The file \
-        should be one of the two public key files generated via the `keygen` subcommand; \
-        \"public_key_hex\" or \"public_key.pem\"";
+        executed. This must be a properly formatted public key. The public key may instead be read
+        in from a file, in which case enter the path to the file as the --session-account
+        argument. The file should be one of the two public key files generated via the `keygen`
+        subcommand; \"public_key_hex\" or \"public_key.pem\"";
 
     pub fn arg(display_order: usize) -> Arg<'static, 'static> {
         sealed_public_key::arg(display_order, ARG_NAME, ARG_HELP, IS_REQUIRED)

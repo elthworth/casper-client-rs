@@ -26,13 +26,19 @@ jobs:
           profile: minimal
           components: rustfmt, clippy
 
-      - name: Cargo Build
+      - name: Install cargo deb
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-deb
+
+      - name: Cargo build
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release
 
-      - name: Cargo Deb
+      - name: Cargo deb
         uses: actions-rs/cargo@v1
         with:
           command: deb

@@ -1,0 +1,35 @@
+---
+name: nightly-scheduled-test
+
+on:
+  schedule:
+    # * is a special character in YAML so you have to quote this string
+    # runs every day at midnight
+    - cron: "0 0 * * *"
+
+jobs:
+  nightly-cargo-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+
+      - name: Slack Notification
+        uses: ravsamhq/notify-slack-action@v1
+        if: always()
+        with:
+          status: ${{ job.status }}
+          notification_title: "*{repo}*"
+          message_format: "{emoji} *{workflow}:* *{status_message}* in <{repo_url}|{repo}@{branch}> on <{commit_url}|{commit_sha}>"
+          footer: "<{run_url}|View Run>"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

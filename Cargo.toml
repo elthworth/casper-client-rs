@@ -62,13 +62,21 @@ casper-mainnet = ["casper-node/casper-mainnet"]
 features = ["vendored-openssl"]
 revision = "0"
 assets = [
-    ["../target/release/casper-client", "/usr/bin/casper-client", "755"],
+    ["./target/release/casper-client", "/usr/bin/casper-client", "755"],
 ]
 extended-description = """
 Package for Casper Client to connect to Casper Node.
 
 For information on using package, see https://github.com/CasperLabs/casper-node
 """
+
+[package.metadata.deb.variants.bionic]
+name = "casper-client"
+revision = "0+bionic"
+
+[package.metadata.deb.variants.focal]
+name = "casper-client"
+revision = "0+focal"
 
 [package.metadata.rpm]
 package = "casper-client"

@@ -1,0 +1,47 @@
+---
+name: publish-casper-client-deb
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build_deb:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-18.04
+            code_name: bionic
+          - os: ubuntu-20.04
+            code_name: focal
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: rustfmt, clippy
+
+      - name: Cargo Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+
+      - name: Cargo Deb
+        uses: actions-rs/cargo@v1
+        with:
+          command: deb
+          args: -p casper-client --no-build --variant ${{ matrix.code_name }}
+
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/debian/casper-client*
+          tag: ${{ github.ref }}
+          file_glob: true

@@ -9,7 +9,7 @@ on:
 jobs:
   publish-rpm:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
 
     steps:
       - uses: actions/checkout@v2
@@ -19,14 +19,9 @@ jobs:
           profile: minimal
 
       - name: Install dependencies
-        run: sudo apt-get install -y createrepo aws
-
-      - name: Setup gpg
         run: |
-          curl https://rpm.casperlabs.io/casper-repo-pubkey.asc | gpg --import --no-tty --batch --yes
-          echo ${{secrets.GPG_PK}} | gpg --import --no-tty --batch --yes
-          echo "allow-preset-passphrase" > ~/.gnupg/gpg-agent.conf
-          echo ${{secrets.GPG_PP}} | /usr/lib/gnupg2/gpg-preset-passphrase --preset 10E2523B45A7799B2C993D80EFD98D5440B4F67A
+          sudo apt-get update
+          sudo apt-get install -y rpm awscli createrepo
 
       - name: Install cargo-rpm
         uses: actions-rs/cargo@v1
@@ -40,17 +35,25 @@ jobs:
           command: rpm
           args: build
 
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v4
+        with:
+          gpg_private_key: ${{ secrets.GPG_PK }}
+          passphrase: ${{ secrets.GPG_PP }}
+
       - name: Sign rpm
         run: |
-          cd ./target/release/rpmbuild/RPMS/x86_64
-          rpmsign --addsign "casper-client*.rpm"
-          cd -
+          cp ci/rpmmacros ~/.rpmmacros
+          rpmsign --addsign ./target/release/rpmbuild/RPMS/x86_64/casper-client*.rpm
 
       - name: Upload to s3 bucket
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.RPM_REPO_AK }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.RPM_REPO_SK }}
         run: ./ci/publish_to_s3_repo.sh source_dir="./target/release/rpmbuild/RPMS/x86_64" target_bucket=${{secrets.RPM_BUCKET}}
 
       - name: Invalidate cloudfront
-        uses: chetan/invalidate-cloudfront-action@v2
+        uses: chetan/invalidate-cloudfront-action@v1
         env:
           DISTRIBUTION: ${{ secrets.DISTRIBUTION_ID }}
           PATHS: "/*"

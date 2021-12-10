@@ -1,0 +1,70 @@
+---
+name: publish-casper-client-rpm
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  publish-rpm:
+
+    runs-on: ubuntu-18.04
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm awscli createrepo
+
+      - name: Install cargo-rpm
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-rpm
+
+      - name: Build rpm
+        uses: actions-rs/cargo@v1
+        with:
+          command: rpm
+          args: build
+
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v4
+        with:
+          gpg_private_key: ${{ secrets.GPG_PK }}
+          passphrase: ${{ secrets.GPG_PP }}
+
+      - name: Sign rpm
+        run: |
+          cp ci/rpmmacros ~/.rpmmacros
+          rpmsign --addsign ./target/release/rpmbuild/RPMS/x86_64/casper-client*.rpm
+
+      - name: Upload to s3 bucket
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.RPM_REPO_AK }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.RPM_REPO_SK }}
+        run: ./ci/publish_to_s3_repo.sh source_dir="./target/release/rpmbuild/RPMS/x86_64" target_bucket=${{secrets.RPM_BUCKET}}
+
+      - name: Invalidate cloudfront
+        uses: chetan/invalidate-cloudfront-action@v1
+        env:
+          DISTRIBUTION: ${{ secrets.DISTRIBUTION_ID }}
+          PATHS: "/*"
+          AWS_REGION: "us-east-1"
+          AWS_ACCESS_KEY_ID: ${{ secrets.RPM_REPO_AK }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.RPM_REPO_SK }}
+
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/rpmbuild/RPMS/x86_64/casper-client*
+          tag: ${{ github.ref }}
+          file_glob: true

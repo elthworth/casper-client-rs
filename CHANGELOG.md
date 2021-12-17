@@ -18,6 +18,13 @@ All notable changes to this project will be documented in this file.  The format
 
 
 
+## 1.4.3 - 2021-12-06
+
+### Changed
+* Updated dependencies, in particular `casper-types` to use fixed checksummed-hex format.
+
+
+
 ## [1.4.2] - 2021-11-13
 
 ### Changed

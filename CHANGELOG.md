@@ -18,10 +18,10 @@ All notable changes to this project will be documented in this file.  The format
 
 
 
-## 1.4.3 - 2021-12-06
+## [1.4.3] - 2021-12-06
 
 ### Changed
-* Updated dependencies, in particular `casper-types` to use fixed checksummed-hex format.
+* Update dependencies, in particular `casper-types` to use fixed checksummed-hex format.
 
 
 
@@ -139,7 +139,8 @@ No changes.
 
 
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0
-[unreleased]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.2...main
+[unreleased]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.3...main
+[1.4.3]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.3.4...v1.4.0

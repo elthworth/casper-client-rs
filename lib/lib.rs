@@ -20,6 +20,7 @@ pub mod ffi;
 pub mod keygen;
 mod parsing;
 mod rpc;
+pub mod types;
 mod validation;
 
 use std::{convert::TryInto, fs, io::Cursor};

@@ -27,7 +27,6 @@ jobs:
           toolchain: stable
           profile: minimal
           components: rustfmt, clippy
-      # Add some needed dependencies
 
       - name: Fmt
         uses: actions-rs/cargo@v1
@@ -46,6 +45,12 @@ jobs:
         with:
           command: clippy
           args: --all-targets
+
+      - name: Doc
+        uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --no-deps
 
       - name: Test
         uses: actions-rs/cargo@v1

@@ -12,7 +12,6 @@ license = "Apache-2.0"
 
 [lib]
 name = "casper_client"
-crate-type = ["rlib", "cdylib"]
 path = "lib/lib.rs"
 
 [[bin]]
@@ -41,9 +40,6 @@ tempfile = "3"
 thiserror = "1"
 tokio = { version = "1.14", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
 
-[build-dependencies]
-cbindgen = { version = "0.20", optional = true }
-
 [dev-dependencies]
 anyhow = "1"
 futures = "0.3.18"
@@ -53,10 +49,6 @@ serde = "1"
 tower = "0.4.11"
 warp = "0.3.2"
 warp-json-rpc = "0.3.0"
-
-[features]
-default = ["ffi"]
-ffi = ["cbindgen"]
 
 [patch.crates-io]
 casper-execution-engine = { git = "https://github.com/casper-network/casper-node", branch = "dev" }

@@ -168,16 +168,6 @@ pub enum Error {
     /// Failed to identify the hash as either block hash or state root hash.
     #[error("Failed to parse state identifier")]
     FailedToParseStateIdentifier,
-
-    /// Must call FFI's setup function prior to making FFI calls.
-    #[cfg(feature = "ffi")]
-    #[error("Failed to call casper_setup_client()")]
-    FFISetupNotCalled,
-
-    /// Must pass valid pointer values to FFI calls.
-    #[cfg(feature = "ffi")]
-    #[error("Required argument '{0}' was null")]
-    FFIPtrNullButRequired(&'static str),
 }
 
 impl From<ToBytesError> for Error {

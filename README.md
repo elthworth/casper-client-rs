@@ -439,18 +439,6 @@ binary. The CLI app `casper-client` makes use of this library to implement its f
 ---
 
 
-## Client library C wrapper
-
-An optional feature of the client library is to use `cbindgen` to build a C wrapper for functions in the library. This
-can then be leveraged to build bindings for the library in any language that can access an `extern "C"` interface.
-
-The feature is named `ffi` and is enabled by default.
-
-See [the examples README](examples/ffi/README.md) for more information.
-
----
-
-
 ## License
 
 Licensed under the [Apache License Version 2.0](LICENSE).

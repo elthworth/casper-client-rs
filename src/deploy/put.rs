@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap::{App, ArgMatches, SubCommand};
+use clap::{ArgMatches, Command};
 
 use casper_client::{DeployStrParams, Error};
 use casper_node::rpcs::account::PutDeploy;
@@ -8,12 +8,12 @@ use super::creation_common::{self, DisplayOrder};
 use crate::{command::ClientCommand, common, Success};
 
 #[async_trait]
-impl<'a, 'b> ClientCommand<'a, 'b> for PutDeploy {
+impl ClientCommand for PutDeploy {
     const NAME: &'static str = "put-deploy";
     const ABOUT: &'static str = "Creates a deploy and sends it to the network for execution";
 
-    fn build(display_order: usize) -> App<'a, 'b> {
-        let subcommand = SubCommand::with_name(Self::NAME)
+    fn build(display_order: usize) -> Command<'static> {
+        let subcommand = Command::new(Self::NAME)
             .about(Self::ABOUT)
             .display_order(display_order)
             .arg(common::verbose::arg(DisplayOrder::Verbose as usize))
@@ -23,7 +23,7 @@ impl<'a, 'b> ClientCommand<'a, 'b> for PutDeploy {
         creation_common::apply_common_creation_options(subcommand, true)
     }
 
-    async fn run(matches: &ArgMatches<'a>) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
         creation_common::show_arg_examples_and_exit_if_required(matches);
 
         let maybe_rpc_id = common::rpc_id::get(matches);

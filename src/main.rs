@@ -17,7 +17,7 @@ mod query_global_state;
 
 use std::process;
 
-use clap::{crate_version, App};
+use clap::{crate_version, Command};
 
 use casper_client::Error;
 use casper_node::rpcs::{
@@ -62,8 +62,8 @@ enum DisplayOrder {
     AccountAddress,
 }
 
-fn cli<'a, 'b>() -> App<'a, 'b> {
-    App::new(APP_NAME)
+fn cli() -> Command<'static> {
+    Command::new(APP_NAME)
         .version(crate_version!())
         .about("A client for interacting with the Casper network")
         .subcommand(PutDeploy::build(DisplayOrder::PutDeploy as usize))
@@ -108,38 +108,38 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
 async fn main() {
     let arg_matches = cli().get_matches();
     let (result, matches) = match arg_matches.subcommand() {
-        (PutDeploy::NAME, Some(matches)) => (PutDeploy::run(matches).await, matches),
-        (MakeDeploy::NAME, Some(matches)) => (MakeDeploy::run(matches).await, matches),
-        (SignDeploy::NAME, Some(matches)) => (SignDeploy::run(matches).await, matches),
-        (SendDeploy::NAME, Some(matches)) => (SendDeploy::run(matches).await, matches),
-        (Transfer::NAME, Some(matches)) => (Transfer::run(matches).await, matches),
-        (MakeTransfer::NAME, Some(matches)) => (MakeTransfer::run(matches).await, matches),
-        (GetDeploy::NAME, Some(matches)) => (GetDeploy::run(matches).await, matches),
-        (GetBlock::NAME, Some(matches)) => (GetBlock::run(matches).await, matches),
-        (GetBlockTransfers::NAME, Some(matches)) => {
+        Some((PutDeploy::NAME, matches)) => (PutDeploy::run(matches).await, matches),
+        Some((MakeDeploy::NAME, matches)) => (MakeDeploy::run(matches).await, matches),
+        Some((SignDeploy::NAME, matches)) => (SignDeploy::run(matches).await, matches),
+        Some((SendDeploy::NAME, matches)) => (SendDeploy::run(matches).await, matches),
+        Some((Transfer::NAME, matches)) => (Transfer::run(matches).await, matches),
+        Some((MakeTransfer::NAME, matches)) => (MakeTransfer::run(matches).await, matches),
+        Some((GetDeploy::NAME, matches)) => (GetDeploy::run(matches).await, matches),
+        Some((GetBlock::NAME, matches)) => (GetBlock::run(matches).await, matches),
+        Some((GetBlockTransfers::NAME, matches)) => {
             (GetBlockTransfers::run(matches).await, matches)
         }
-        (ListDeploys::NAME, Some(matches)) => (ListDeploys::run(matches).await, matches),
-        (GetBalance::NAME, Some(matches)) => (GetBalance::run(matches).await, matches),
-        (GetAccountInfo::NAME, Some(matches)) => (GetAccountInfo::run(matches).await, matches),
-        (GetStateRootHash::NAME, Some(matches)) => (GetStateRootHash::run(matches).await, matches),
-        (GetEraInfoBySwitchBlock::NAME, Some(matches)) => {
+        Some((ListDeploys::NAME, matches)) => (ListDeploys::run(matches).await, matches),
+        Some((GetBalance::NAME, matches)) => (GetBalance::run(matches).await, matches),
+        Some((GetAccountInfo::NAME, matches)) => (GetAccountInfo::run(matches).await, matches),
+        Some((GetStateRootHash::NAME, matches)) => (GetStateRootHash::run(matches).await, matches),
+        Some((GetEraInfoBySwitchBlock::NAME, matches)) => {
             (GetEraInfoBySwitchBlock::run(matches).await, matches)
         }
-        (GetAuctionInfo::NAME, Some(matches)) => (GetAuctionInfo::run(matches).await, matches),
-        (GetValidatorChanges::NAME, Some(matches)) => {
+        Some((GetAuctionInfo::NAME, matches)) => (GetAuctionInfo::run(matches).await, matches),
+        Some((GetValidatorChanges::NAME, matches)) => {
             (GetValidatorChanges::run(matches).await, matches)
         }
-        (Keygen::NAME, Some(matches)) => (Keygen::run(matches).await, matches),
-        (GenerateCompletion::NAME, Some(matches)) => {
+        Some((Keygen::NAME, matches)) => (Keygen::run(matches).await, matches),
+        Some((GenerateCompletion::NAME, matches)) => {
             (GenerateCompletion::run(matches).await, matches)
         }
-        (ListRpcs::NAME, Some(matches)) => (ListRpcs::run(matches).await, matches),
-        (AccountAddress::NAME, Some(matches)) => (AccountAddress::run(matches).await, matches),
-        (GetDictionaryItem::NAME, Some(matches)) => {
+        Some((ListRpcs::NAME, matches)) => (ListRpcs::run(matches).await, matches),
+        Some((AccountAddress::NAME, matches)) => (AccountAddress::run(matches).await, matches),
+        Some((GetDictionaryItem::NAME, matches)) => {
             (GetDictionaryItem::run(matches).await, matches)
         }
-        (QueryGlobalState::NAME, Some(matches)) => (QueryGlobalState::run(matches).await, matches),
+        Some((QueryGlobalState::NAME, matches)) => (QueryGlobalState::run(matches).await, matches),
 
         _ => {
             let _ = cli().print_long_help();

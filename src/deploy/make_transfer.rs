@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap::{App, ArgMatches, SubCommand};
+use clap::{ArgMatches, Command};
 
 use casper_client::{DeployStrParams, Error};
 
@@ -9,15 +9,15 @@ use crate::{command::ClientCommand, common, Success};
 pub struct MakeTransfer;
 
 #[async_trait]
-impl<'a, 'b> ClientCommand<'a, 'b> for MakeTransfer {
+impl ClientCommand for MakeTransfer {
     const NAME: &'static str = "make-transfer";
     const ABOUT: &'static str =
         "Creates a transfer deploy and outputs it to a file or stdout. As a file, the deploy can \
         subsequently be signed by other parties using the 'sign-deploy' subcommand and then sent \
         to the network for execution using the 'send-deploy' subcommand";
 
-    fn build(display_order: usize) -> App<'a, 'b> {
-        let subcommand = SubCommand::with_name(Self::NAME)
+    fn build(display_order: usize) -> Command<'static> {
+        let subcommand = Command::new(Self::NAME)
             .about(Self::ABOUT)
             .display_order(display_order)
             .arg(creation_common::output::arg())
@@ -32,7 +32,7 @@ impl<'a, 'b> ClientCommand<'a, 'b> for MakeTransfer {
         creation_common::apply_common_creation_options(subcommand, false)
     }
 
-    async fn run(matches: &ArgMatches<'a>) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
         creation_common::show_arg_examples_and_exit_if_required(matches);
 
         let amount = transfer::amount::get(matches);

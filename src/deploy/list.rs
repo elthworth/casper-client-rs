@@ -1,7 +1,7 @@
 use std::str;
 
 use async_trait::async_trait;
-use clap::{App, ArgMatches, SubCommand};
+use clap::{ArgMatches, Command};
 
 use casper_client::{Error, ListDeploysResult};
 use casper_node::rpcs::chain::GetBlockResult;
@@ -19,12 +19,12 @@ enum DisplayOrder {
 pub struct ListDeploys;
 
 #[async_trait]
-impl<'a, 'b> ClientCommand<'a, 'b> for ListDeploys {
+impl ClientCommand for ListDeploys {
     const NAME: &'static str = "list-deploys";
     const ABOUT: &'static str = "Retrieves the list of all deploy hashes in a given block";
 
-    fn build(display_order: usize) -> App<'a, 'b> {
-        SubCommand::with_name(Self::NAME)
+    fn build(display_order: usize) -> Command<'static> {
+        Command::new(Self::NAME)
             .about(Self::ABOUT)
             .display_order(display_order)
             .arg(common::verbose::arg(DisplayOrder::Verbose as usize))
@@ -37,7 +37,7 @@ impl<'a, 'b> ClientCommand<'a, 'b> for ListDeploys {
             ))
     }
 
-    async fn run(matches: &ArgMatches<'a>) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);

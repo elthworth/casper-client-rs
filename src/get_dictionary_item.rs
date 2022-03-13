@@ -1,7 +1,7 @@
 use std::{fs, str};
 
 use async_trait::async_trait;
-use clap::{App, Arg, ArgGroup, ArgMatches, SubCommand};
+use clap::{Arg, ArgGroup, ArgMatches, Command};
 
 use casper_client::{DictionaryItemStrParams, Error};
 use casper_node::rpcs::state::GetDictionaryItem;
@@ -36,8 +36,8 @@ mod key {
         arg_name: &'static str,
         arg_help: &'static str,
         display_order: usize,
-    ) -> Arg<'static, 'static> {
-        Arg::with_name(arg_name)
+    ) -> Arg<'static> {
+        Arg::new(arg_name)
             .long(arg_name)
             .required(false)
             .value_name(ARG_VALUE_NAME)
@@ -78,7 +78,7 @@ mod account_hash {
         "This must be a properly formatted account hash. The format for account hash is \
         \"account-hash-<HEX STRING>\".";
 
-    pub(super) fn arg() -> Arg<'static, 'static> {
+    pub(super) fn arg() -> Arg<'static> {
         key::arg(ARG_NAME, ARG_HELP, DisplayOrder::AccountHash as usize)
     }
 
@@ -95,7 +95,7 @@ mod contract_hash {
         "This must be a properly formatted contract hash. The format for contract hash is \
         \"hash-<HEX STRING>\".";
 
-    pub(super) fn arg() -> Arg<'static, 'static> {
+    pub(super) fn arg() -> Arg<'static> {
         key::arg(ARG_NAME, ARG_HELP, DisplayOrder::ContractHash as usize)
     }
 
@@ -112,8 +112,8 @@ mod dictionary_name {
     const ARG_VALUE_NAME: &str = "STRING";
     const ARG_HELP: &str = "The named key under which the dictionary seed URef is stored.";
 
-    pub(super) fn arg() -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(super) fn arg() -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .required(false)
             .value_name(ARG_VALUE_NAME)
@@ -121,7 +121,7 @@ mod dictionary_name {
             .display_order(DisplayOrder::DictionaryName as usize)
     }
 
-    pub(super) fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub(super) fn get(matches: &ArgMatches) -> &str {
         matches.value_of(ARG_NAME).unwrap_or_default()
     }
 }
@@ -134,8 +134,8 @@ mod dictionary_item_key {
     const ARG_VALUE_NAME: &str = "STRING";
     const ARG_HELP: &str = "The dictionary item key formatted as a string.";
 
-    pub(super) fn arg() -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(super) fn arg() -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .required(true)
             .value_name(ARG_VALUE_NAME)
@@ -143,7 +143,7 @@ mod dictionary_item_key {
             .display_order(DisplayOrder::DictionaryItemKey as usize)
     }
 
-    pub(super) fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub(super) fn get(matches: &ArgMatches) -> &str {
         matches.value_of(ARG_NAME).unwrap_or_default()
     }
 }
@@ -157,8 +157,8 @@ mod seed_uref {
     const ARG_HELP: &str = "The dictionary's seed URef. This must be a properly formatted URef \
         \"uref-<HEX STRING>-<THREE DIGIT INTEGER>\"";
 
-    pub(super) fn arg() -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(super) fn arg() -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .required(false)
             .value_name(ARG_VALUE_NAME)
@@ -166,7 +166,7 @@ mod seed_uref {
             .display_order(DisplayOrder::DictionarySeedURef as usize)
     }
 
-    pub(super) fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub(super) fn get(matches: &ArgMatches) -> &str {
         matches.value_of(ARG_NAME).unwrap_or_default()
     }
 }
@@ -179,8 +179,8 @@ mod dictionary_address {
     const ARG_VALUE_NAME: &str = "FORMATTED STRING";
     const ARG_HELP: &str = "The dictionary item's unique key.";
 
-    pub(super) fn arg() -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(super) fn arg() -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .required(false)
             .value_name(ARG_VALUE_NAME)
@@ -188,18 +188,18 @@ mod dictionary_address {
             .display_order(DisplayOrder::DictionaryAddress as usize)
     }
 
-    pub(super) fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub(super) fn get(matches: &ArgMatches) -> &str {
         matches.value_of(ARG_NAME).unwrap_or_default()
     }
 }
 
 #[async_trait]
-impl<'a, 'b> ClientCommand<'a, 'b> for GetDictionaryItem {
+impl ClientCommand for GetDictionaryItem {
     const NAME: &'static str = "get-dictionary-item";
     const ABOUT: &'static str = "Query for values managed in a dictionary";
 
-    fn build(display_order: usize) -> App<'a, 'b> {
-        SubCommand::with_name(Self::NAME)
+    fn build(display_order: usize) -> Command<'static> {
+        Command::new(Self::NAME)
             .about(Self::ABOUT)
             .display_order(display_order)
             .arg(common::verbose::arg(DisplayOrder::Verbose as usize))
@@ -216,12 +216,12 @@ impl<'a, 'b> ClientCommand<'a, 'b> for GetDictionaryItem {
             .arg(dictionary_address::arg())
             .arg(
                 dictionary_name::arg()
-                    .required_unless(seed_uref::ARG_NAME)
-                    .required_unless(dictionary_address::ARG_NAME),
+                    .required_unless_present(seed_uref::ARG_NAME)
+                    .required_unless_present(dictionary_address::ARG_NAME),
             )
-            .arg(dictionary_item_key::arg().required_unless(dictionary_address::ARG_NAME))
+            .arg(dictionary_item_key::arg().required_unless_present(dictionary_address::ARG_NAME))
             .group(
-                ArgGroup::with_name("dictionary-identifier")
+                ArgGroup::new("dictionary-identifier")
                     .arg(account_hash::ARG_NAME)
                     .arg(contract_hash::ARG_NAME)
                     .arg(seed_uref::ARG_NAME)
@@ -230,7 +230,7 @@ impl<'a, 'b> ClientCommand<'a, 'b> for GetDictionaryItem {
             )
     }
 
-    async fn run(matches: &ArgMatches<'a>) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);

@@ -6,7 +6,7 @@ use casper_hashing::Digest;
 use casper_types::{bytesrepr::ToBytes, crypto::PublicKey};
 
 use crate::{
-    types::{Block, BlockBody, BlockHash, BlockHeader, EraEnd, EraReport},
+    types::{Block, BlockBody, BlockHash, BlockHeader, DeployHash, EraEnd, EraReport},
     validation::ValidateResponseError,
 };
 
@@ -152,12 +152,12 @@ fn hash_body(
         Digest::hash_pair(Digest::hash(&proposer.to_bytes()?), Digest::SENTINEL_RFOLD);
 
     let transfer_hashes_digest = Digest::hash_pair(
-        Digest::hash_merkle_tree(transfer_hashes.iter().cloned().map(Digest::from)),
+        Digest::hash_merkle_tree(transfer_hashes.iter().map(DeployHash::inner)),
         proposer_digest,
     );
 
     let deploy_hashes_digest = Digest::hash_pair(
-        Digest::hash_merkle_tree(deploy_hashes.iter().cloned().map(Digest::from)),
+        Digest::hash_merkle_tree(deploy_hashes.iter().map(DeployHash::inner)),
         transfer_hashes_digest,
     );
 

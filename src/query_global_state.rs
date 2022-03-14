@@ -3,12 +3,13 @@ use std::{fs, str};
 use async_trait::async_trait;
 use clap::{Arg, ArgGroup, ArgMatches, Command};
 
-use casper_client::{Error, GlobalStateStrParams};
-use casper_node::rpcs::state::QueryGlobalState;
+use casper_client::cli::{CliError, GlobalStateStrParams};
 
 use crate::{command::ClientCommand, common, Success};
 
 const ARG_HEX_STRING: &str = "HEX STRING";
+
+pub struct QueryGlobalState;
 
 /// This struct defines the order in which the args are shown for this subcommand's help message.
 enum DisplayOrder {
@@ -69,7 +70,7 @@ mod block_hash {
 
 /// Handles providing the arg for and retrieval of the key.
 mod key {
-    use casper_node::crypto::AsymmetricKeyExt;
+    use casper_client::AsymmetricKeyExt;
     use casper_types::{AsymmetricType, PublicKey};
 
     use super::*;
@@ -101,7 +102,7 @@ mod key {
             .display_order(order)
     }
 
-    pub(crate) fn get(matches: &ArgMatches) -> Result<String, Error> {
+    pub(crate) fn get(matches: &ArgMatches) -> Result<String, CliError> {
         let value = matches
             .value_of(ARG_NAME)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME));
@@ -118,7 +119,10 @@ mod key {
                     "Can't parse the contents of {} as a public key: {}",
                     value, error
                 );
-                Error::FailedToParseKey
+                CliError::FailedToParsePublicKey {
+                    context: "query",
+                    error,
+                }
             })?;
             return Ok(hex_public_key);
         }
@@ -195,7 +199,7 @@ impl ClientCommand for QueryGlobalState {
             )
     }
 
-    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);
@@ -203,7 +207,7 @@ impl ClientCommand for QueryGlobalState {
         let key = key::get(matches)?;
         let path = path::get(matches);
 
-        casper_client::query_global_state(
+        casper_client::cli::query_global_state(
             maybe_rpc_id,
             node_address,
             verbosity_level,

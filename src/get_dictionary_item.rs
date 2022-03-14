@@ -3,11 +3,12 @@ use std::{fs, str};
 use async_trait::async_trait;
 use clap::{Arg, ArgGroup, ArgMatches, Command};
 
-use casper_client::{DictionaryItemStrParams, Error};
-use casper_node::rpcs::state::GetDictionaryItem;
+use casper_client::cli::{CliError, DictionaryItemStrParams};
 use casper_types::PublicKey;
 
 use crate::{command::ClientCommand, common, Success};
+
+pub struct GetDictionaryItem;
 
 /// This struct defines the order in which the args are shown for this subcommand's help message.
 enum DisplayOrder {
@@ -25,7 +26,7 @@ enum DisplayOrder {
 
 /// Handles providing the arg for and retrieval of the key.
 mod key {
-    use casper_node::crypto::AsymmetricKeyExt;
+    use casper_client::AsymmetricKeyExt;
     use casper_types::AsymmetricType;
 
     use super::*;
@@ -45,7 +46,7 @@ mod key {
             .display_order(display_order)
     }
 
-    pub(super) fn get(arg_name: &'static str, matches: &ArgMatches) -> Result<String, Error> {
+    pub(super) fn get(arg_name: &'static str, matches: &ArgMatches) -> Result<String, CliError> {
         let value = matches.value_of(arg_name).unwrap_or_default();
 
         // Try to read as a PublicKey PEM file first.
@@ -60,7 +61,10 @@ mod key {
                     "Can't parse the contents of {} as a public key: {}",
                     value, error
                 );
-                Error::FailedToParseKey
+                CliError::FailedToParsePublicKey {
+                    context: "get dictionary item public key",
+                    error,
+                }
             })?;
             return Ok(hex_public_key);
         }
@@ -82,7 +86,7 @@ mod account_hash {
         key::arg(ARG_NAME, ARG_HELP, DisplayOrder::AccountHash as usize)
     }
 
-    pub(super) fn get(matches: &ArgMatches) -> Result<String, Error> {
+    pub(super) fn get(matches: &ArgMatches) -> Result<String, CliError> {
         key::get(ARG_NAME, matches)
     }
 }
@@ -99,7 +103,7 @@ mod contract_hash {
         key::arg(ARG_NAME, ARG_HELP, DisplayOrder::ContractHash as usize)
     }
 
-    pub(super) fn get(matches: &ArgMatches) -> Result<String, Error> {
+    pub(super) fn get(matches: &ArgMatches) -> Result<String, CliError> {
         key::get(ARG_NAME, matches)
     }
 }
@@ -230,7 +234,7 @@ impl ClientCommand for GetDictionaryItem {
             )
     }
 
-    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);
@@ -243,16 +247,16 @@ impl ClientCommand for GetDictionaryItem {
         let dictionary_key = dictionary_address::get(matches);
         let dictionary_item_key = dictionary_item_key::get(matches);
 
-        let dictionary_query_str_params = if !account_hash.is_empty() && !dictionary_name.is_empty()
+        let dictionary_item_str_params = if !account_hash.is_empty() && !dictionary_name.is_empty()
         {
             DictionaryItemStrParams::AccountNamedKey {
-                key: &account_hash,
+                account_hash: &account_hash,
                 dictionary_name,
                 dictionary_item_key,
             }
         } else if !contract_hash.is_empty() && !dictionary_name.is_empty() {
             DictionaryItemStrParams::ContractNamedKey {
-                key: &contract_hash,
+                hash_addr: &contract_hash,
                 dictionary_name,
                 dictionary_item_key,
             }
@@ -264,15 +268,18 @@ impl ClientCommand for GetDictionaryItem {
         } else if !dictionary_key.is_empty() {
             DictionaryItemStrParams::Dictionary(dictionary_key)
         } else {
-            return Err(Error::FailedToParseDictionaryIdentifier);
+            return Err(CliError::InvalidArgument {
+                context: "dictionary item identifier",
+                error: "mismatch of args".to_string(),
+            });
         };
 
-        casper_client::get_dictionary_item(
+        casper_client::cli::get_dictionary_item(
             maybe_rpc_id,
             node_address,
             verbosity_level,
             state_root_hash,
-            dictionary_query_str_params,
+            dictionary_item_str_params,
         )
         .await
         .map(Success::from)

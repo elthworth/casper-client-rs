@@ -3,23 +3,24 @@ use std::str;
 use async_trait::async_trait;
 use clap::{ArgMatches, Command};
 
-use casper_client::Error;
-use casper_node::rpcs::chain::GetStateRootHash;
+use casper_client::cli::CliError;
 
 use crate::{command::ClientCommand, common, Success};
 
-/// This struct defines the order in which the args are shown for this subcommand's help message.
+pub struct GetChainspec;
+
+/// This enum defines the order in which the args are shown for this subcommand's help message.
 enum DisplayOrder {
     Verbose,
     NodeAddress,
     RpcId,
-    BlockHash,
 }
 
 #[async_trait]
-impl ClientCommand for GetStateRootHash {
-    const NAME: &'static str = "get-state-root-hash";
-    const ABOUT: &'static str = "Retrieves a state root hash at a given block";
+impl ClientCommand for GetChainspec {
+    const NAME: &'static str = "get-chainspec";
+    const ABOUT: &'static str =
+        "Retrieves the chainspec of the network (to print the full TOML, run with '-vv')";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)
@@ -30,24 +31,15 @@ impl ClientCommand for GetStateRootHash {
                 DisplayOrder::NodeAddress as usize,
             ))
             .arg(common::rpc_id::arg(DisplayOrder::RpcId as usize))
-            .arg(common::block_identifier::arg(
-                DisplayOrder::BlockHash as usize,
-            ))
     }
 
-    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);
-        let maybe_block_id = common::block_identifier::get(matches);
 
-        casper_client::get_state_root_hash(
-            maybe_rpc_id,
-            node_address,
-            verbosity_level,
-            maybe_block_id,
-        )
-        .await
-        .map(Success::from)
+        casper_client::cli::get_chainspec(maybe_rpc_id, node_address, verbosity_level)
+            .await
+            .map(Success::from)
     }
 }

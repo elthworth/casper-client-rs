@@ -3,10 +3,11 @@ use std::str;
 use async_trait::async_trait;
 use clap::{ArgMatches, Command};
 
-use casper_client::Error;
-use casper_node::rpcs::state::GetAuctionInfo;
+use casper_client::cli::CliError;
 
 use crate::{command::ClientCommand, common, Success};
+
+pub struct GetAuctionInfo;
 
 /// This struct defines the order in which the args are shown for this subcommand's help message.
 enum DisplayOrder {
@@ -36,14 +37,19 @@ impl ClientCommand for GetAuctionInfo {
             ))
     }
 
-    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);
         let maybe_block_id = common::block_identifier::get(matches);
 
-        casper_client::get_auction_info(maybe_rpc_id, node_address, verbosity_level, maybe_block_id)
-            .await
-            .map(Success::from)
+        casper_client::cli::get_auction_info(
+            maybe_rpc_id,
+            node_address,
+            verbosity_level,
+            maybe_block_id,
+        )
+        .await
+        .map(Success::from)
     }
 }

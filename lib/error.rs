@@ -1,130 +1,144 @@
-use std::{num::ParseIntError, path::PathBuf};
+use std::{io, path::PathBuf};
 
-use humantime::{DurationError, TimestampError};
-use jsonrpc_lite::JsonRpc;
 use thiserror::Error;
 
-use casper_node::{crypto::Error as CryptoError, types::ExcessiveSizeDeployError};
-use casper_types::{
-    bytesrepr::Error as ToBytesError, CLValueError, UIntParseError, URefFromStrError,
-};
+use casper_types::{bytesrepr::Error as ToBytesError, Key};
+#[cfg(doc)]
+use casper_types::{CLValue, URef};
 
-use crate::validation::ValidateResponseError;
+#[cfg(doc)]
+use crate::types::{Deploy, DeployBuilder, TimeDiff, Timestamp};
+use crate::{validation::ValidateResponseError, CryptoError, JsonRpcId};
 
-/// Crate-wide Result type wrapper.
-pub(crate) type Result<T> = std::result::Result<T, Error>;
-
-/// Error that can be returned by `casper-client`.
+/// Errors that may be returned by `casper_client` functions.
 #[derive(Error, Debug)]
 pub enum Error {
-    /// Failed to parse a
-    /// [`Key`](https://docs.rs/casper-types/latest/casper-types/enum.PublicKey.html) from a
-    /// formatted string.
-    #[error("Failed to parse as a key")]
-    FailedToParseKey,
-
-    /// Failed to parse a `URef` from a formatted string.
-    #[error("Failed to parse '{context}' as a uref: {error}")]
-    FailedToParseURef {
-        /// Contextual description of where this error occurred including relevant paths,
-        /// filenames, etc.
-        context: &'static str,
-        /// The actual error raised.
-        error: URefFromStrError,
+    /// [`Deploy`] size too large.
+    #[error("deploy size of {actual_deploy_size} bytes exceeds limit of {max_deploy_size}")]
+    DeploySizeTooLarge {
+        /// The maximum permitted serialized deploy size, in bytes.
+        max_deploy_size: u32,
+        /// The serialized size of the deploy provided, in bytes.
+        actual_deploy_size: usize,
     },
 
-    /// Failed to parse an integer from a string.
-    #[error("Failed to parse '{context}' as an integer: {error}")]
-    FailedToParseInt {
-        /// Contextual description of where this error occurred including relevant paths,
-        /// filenames, etc.
-        context: &'static str,
-        /// The actual error raised.
-        error: ParseIntError,
-    },
+    /// Failed to build [`Deploy`] due to missing payment code.
+    ///
+    /// Call [`DeployBuilder::with_standard_payment`] or [`DeployBuilder::with_payment`] before
+    /// calling [`DeployBuilder::build`].
+    #[error("deploy requires payment code - use `with_payment` or `with_standard_payment`")]
+    DeployMissingPaymentCode,
 
-    /// Failed to parse a `TimeDiff` from a formatted string.
-    #[error("Failed to parse '{context}' as a time diff: {error}")]
-    FailedToParseTimeDiff {
-        /// Contextual description of where this error occurred including relevant paths,
-        /// filenames, etc.
-        context: &'static str,
-        /// The actual error raised.
-        error: DurationError,
+    /// Invalid [`Key`] variant.
+    #[error("expected {} but got {}", .expected_variant, .actual)]
+    InvalidKeyVariant {
+        /// The expected variant.
+        expected_variant: String,
+        /// The actual key provided.
+        actual: Key,
     },
-
-    /// Failed to parse a `Timestamp` from a formatted string.
-    #[error("Failed to parse '{context}' as a timestamp: {error}")]
-    FailedToParseTimestamp {
-        /// Contextual description of where this error occurred including relevant paths,
-        /// filenames, etc.
-        context: &'static str,
-        /// The actual error raised.
-        error: TimestampError,
-    },
-
-    /// Failed to parse a `U128`, `U256` or `U512` from a string.
-    #[error("Failed to parse '{context}' as U128, U256, or U512: {error:?}")]
-    FailedToParseUint {
-        /// Contextual description of where this error occurred including relevant paths,
-        /// filenames, etc.
-        context: &'static str,
-        /// The actual error raised.
-        error: UIntParseError,
-    },
-
-    /// Deploy size too large.
-    #[error("Deploy size too large: {0}")]
-    DeploySizeTooLarge(#[from] ExcessiveSizeDeployError),
 
     /// Failed to get a response from the node.
-    #[error("Failed to get RPC response: {0}")]
-    FailedToGetResponse(reqwest::Error),
-
-    /// Failed to parse the response from the node.
-    #[error("Failed to parse as JSON-RPC response: {0}")]
-    FailedToParseResponse(reqwest::Error),
-
-    /// Failed to create new file because it already exists.
-    #[error("File at {} already exists", .0.display())]
-    FileAlreadyExists(PathBuf),
-
-    /// Unsupported keygen algorithm.
-    #[error("Unsupported keygen algorithm: {0}")]
-    UnsupportedAlgorithm(String),
+    #[error("failed to get response for rpc-id {rpc_id} {rpc_method}: {error}")]
+    FailedToGetResponse {
+        /// The JSON-RPC ID.
+        rpc_id: JsonRpcId,
+        /// The JSON-RPC request method.
+        rpc_method: &'static str,
+        /// The reported error.
+        error: reqwest::Error,
+    },
 
     /// JSON-RPC error returned from the node.
-    #[error("RPC response is error: {0}")]
-    ResponseIsError(#[from] jsonrpc_lite::Error),
+    #[error("response for rpc-id {rpc_id} {rpc_method} is http error: {error}")]
+    ResponseIsHttpError {
+        /// The JSON-RPC ID.
+        rpc_id: JsonRpcId,
+        /// The JSON-RPC request method.
+        rpc_method: &'static str,
+        /// The reported error.
+        error: reqwest::Error,
+    },
 
-    /// Invalid JSON returned from the node.
-    #[error("Invalid JSON: {0}")]
-    InvalidJson(#[from] serde_json::Error),
+    /// Failed to parse the response.
+    #[error("failed to parse response for rpc-id {rpc_id} {rpc_method}: {error}")]
+    FailedToParseResponse {
+        /// The JSON-RPC ID.
+        rpc_id: JsonRpcId,
+        /// The JSON-RPC request method.
+        rpc_method: &'static str,
+        /// The reported error.
+        error: reqwest::Error,
+    },
+
+    /// JSON-RPC error returned from the node.
+    #[error("response for rpc-id {rpc_id} {rpc_method} is json-rpc error: {error}")]
+    ResponseIsRpcError {
+        /// The JSON-RPC ID.
+        rpc_id: JsonRpcId,
+        /// The JSON-RPC request method.
+        rpc_method: &'static str,
+        /// The reported error.
+        error: jsonrpc_lite::Error,
+    },
 
     /// Invalid response returned from the node.
-    #[error("Invalid response: {0:?}")]
-    InvalidRpcResponse(JsonRpc),
+    #[error("response for rpc-id {rpc_id} {rpc_method} is not valid: {response}")]
+    InvalidRpcResponse {
+        /// The JSON-RPC ID.
+        rpc_id: JsonRpcId,
+        /// The JSON-RPC request method.
+        rpc_method: &'static str,
+        /// The JSON response.
+        response: serde_json::Value,
+    },
 
-    /// Failed to send the request to the node.
-    #[error("Failed sending {0:?}")]
-    FailedSending(JsonRpc),
+    /// Failed to encode to JSON.
+    #[error("failed to encode to json: {context}: {error}")]
+    FailedToEncodeToJson {
+        /// Contextual description of where this error occurred.
+        context: &'static str,
+        /// Underlying encoding error.
+        error: serde_json::Error,
+    },
+
+    /// Failed to decode from JSON.
+    #[error("failed to decode from json: {context}: {error}")]
+    FailedToDecodeFromJson {
+        /// Contextual description of where this error occurred.
+        context: &'static str,
+        /// Underlying decoding error.
+        error: serde_json::Error,
+    },
+
+    /// Failed to create new file because it already exists.
+    #[error("file at {} already exists", .0.display())]
+    FileAlreadyExists(PathBuf),
+
+    /// Empty path provided as output dir for keygen.
+    #[error("empty path provided as output dir for keygen")]
+    EmptyKeygenPath,
+
+    /// Unsupported keygen algorithm.
+    #[error("unsupported keygen algorithm: {0}")]
+    UnsupportedAlgorithm(String),
 
     /// Context-adding wrapper for `std::io::Error`.
-    #[error("IO error: {context}: {error}")]
+    #[error("input/output error: {context}: {error}")]
     IoError {
         /// Contextual description of where this error occurred including relevant paths,
         /// filenames, etc.
         context: String,
         /// std::io::Error raised during the operation in question.
-        error: std::io::Error,
+        error: io::Error,
     },
 
     /// Failed to serialize to bytes.
-    #[error("Serialization error: {0}")]
+    #[error("serialization error: {0}")]
     ToBytesError(ToBytesError),
 
     /// Cryptographic error.
-    #[error("Cryptographic error: {context}: {error}")]
+    #[error("cryptographic error: {context}: {error}")]
     CryptoError {
         /// Contextual description of where this error occurred including relevant paths,
         /// filenames, etc.
@@ -133,54 +147,13 @@ pub enum Error {
         error: CryptoError,
     },
 
-    /// Invalid `CLValue`.
-    #[error("Invalid CLValue error: {0}")]
-    InvalidCLValue(String),
-
-    /// Invalid argument.
-    #[error("Invalid argument '{context}': {error}")]
-    InvalidArgument {
-        /// Contextual description of where this error occurred including relevant paths,
-        /// filenames, etc.
-        context: &'static str,
-        /// An error message.
-        error: String,
-    },
-
-    /// Conflicting arguments.
-    #[error("Conflicting arguments passed '{context}' {args:?}")]
-    ConflictingArguments {
-        /// Contextual description of where this error occurred including relevant paths,
-        /// filenames, etc.
-        context: &'static str,
-        /// Arguments passed, with their values.
-        args: Vec<String>,
-    },
-
     /// Failed to validate response.
-    #[error("Invalid response: {0}")]
-    InvalidResponse(#[from] ValidateResponseError),
-
-    /// Failed to create a DictionaryIdentifier
-    #[error("Failed to parse the dictionary identifier")]
-    FailedToParseDictionaryIdentifier,
-
-    /// Failed to identify the hash as either block hash or state root hash.
-    #[error("Failed to parse state identifier")]
-    FailedToParseStateIdentifier,
+    #[error("invalid response: {0}")]
+    ResponseFailedValidation(#[from] ValidateResponseError),
 }
 
 impl From<ToBytesError> for Error {
     fn from(error: ToBytesError) -> Self {
         Error::ToBytesError(error)
-    }
-}
-
-impl From<CLValueError> for Error {
-    fn from(error: CLValueError) -> Self {
-        match error {
-            CLValueError::Serialization(bytesrepr_error) => bytesrepr_error.into(),
-            CLValueError::Type(type_mismatch) => Error::InvalidCLValue(type_mismatch.to_string()),
-        }
     }
 }

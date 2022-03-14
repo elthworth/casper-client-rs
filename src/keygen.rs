@@ -3,8 +3,8 @@ use clap::{Arg, ArgMatches, Command};
 use once_cell::sync::Lazy;
 
 use casper_client::{
+    cli::CliError,
     keygen::{self, FILES, PUBLIC_KEY_HEX},
-    Error,
 };
 
 use crate::{command::ClientCommand, common, Success};
@@ -95,12 +95,12 @@ impl ClientCommand for Keygen {
             .arg(algorithm::arg())
     }
 
-    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
         let output_dir = output_dir::get(matches);
         let algorithm = algorithm::get(matches);
         let force = common::force::get(matches);
 
-        keygen::generate_files(&output_dir, algorithm, force)
-            .map(|_| Success::Output(format!("Wrote files to {}", output_dir)))
+        keygen::generate_files(&output_dir, algorithm, force)?;
+        Ok(Success::Output(format!("Wrote files to {}", output_dir)))
     }
 }

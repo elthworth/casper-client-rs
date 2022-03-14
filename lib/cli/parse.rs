@@ -1,69 +1,88 @@
 //! This module contains structs and helpers which are used by multiple subcommands related to
 //! creating deploys.
 
-use std::{convert::TryInto, fs, io, path::PathBuf, str::FromStr};
+use std::{convert::TryInto, fs, io, path::Path, str::FromStr};
 
+use rand::Rng;
 use serde::{self, Deserialize};
 
-use casper_execution_engine::core::engine_state::executable_deploy_item::ExecutableDeployItem;
 use casper_hashing::Digest;
-use casper_node::{
-    crypto::AsymmetricKeyExt,
-    types::{DeployHash, TimeDiff, Timestamp},
-};
 use casper_types::{
     bytesrepr, AsymmetricType, CLType, CLValue, HashAddr, Key, NamedArg, PublicKey, RuntimeArgs,
     SecretKey, UIntParseError, U512,
 };
 
+use super::{cl_type, CliError, PaymentStrParams, SessionStrParams};
 use crate::{
-    cl_type,
-    deploy::DeployParams,
-    error::{Error, Result},
-    help, map_hashing_error, PaymentStrParams, SessionStrParams,
+    crypto::AsymmetricKeyExt,
+    types::{BlockHash, DeployHash, ExecutableDeployItem, TimeDiff, Timestamp},
+    BlockIdentifier, JsonRpcId, OutputKind, Verbosity,
 };
 
-pub(super) fn none_if_empty(value: &'_ str) -> Option<&'_ str> {
-    if value.is_empty() {
-        return None;
+pub(super) fn rpc_id(maybe_rpc_id: &str) -> JsonRpcId {
+    if maybe_rpc_id.is_empty() {
+        JsonRpcId::from(rand::thread_rng().gen::<i64>())
+    } else if let Ok(i64_id) = maybe_rpc_id.parse::<i64>() {
+        JsonRpcId::from(i64_id)
+    } else {
+        JsonRpcId::from(maybe_rpc_id.to_string())
     }
-    Some(value)
 }
 
-fn timestamp(value: &str) -> Result<Timestamp> {
+pub(super) fn verbosity(verbosity_level: u64) -> Verbosity {
+    match verbosity_level {
+        0 => Verbosity::Low,
+        1 => Verbosity::Medium,
+        _ => Verbosity::High,
+    }
+}
+
+pub(super) fn output_kind(maybe_output_path: &str, force: bool) -> OutputKind {
+    if maybe_output_path.is_empty() {
+        OutputKind::Stdout
+    } else {
+        OutputKind::file(Path::new(maybe_output_path), force)
+    }
+}
+
+pub(super) fn secret_key_from_file<P: AsRef<Path>>(
+    secret_key_path: P,
+) -> Result<SecretKey, CliError> {
+    SecretKey::from_file(secret_key_path).map_err(|error| {
+        CliError::Core(crate::Error::CryptoError {
+            context: "secret key",
+            error,
+        })
+    })
+}
+
+pub(super) fn timestamp(value: &str) -> Result<Timestamp, CliError> {
     if value.is_empty() {
         return Ok(Timestamp::now());
     }
-    Timestamp::from_str(value).map_err(|error| Error::FailedToParseTimestamp {
+    Timestamp::from_str(value).map_err(|error| CliError::FailedToParseTimestamp {
         context: "timestamp",
         error,
     })
 }
 
-fn ttl(value: &str) -> Result<TimeDiff> {
-    TimeDiff::from_str(value).map_err(|error| Error::FailedToParseTimeDiff {
+pub(super) fn ttl(value: &str) -> Result<TimeDiff, CliError> {
+    TimeDiff::from_str(value).map_err(|error| CliError::FailedToParseTimeDiff {
         context: "ttl",
         error,
     })
 }
 
-fn gas_price(value: &str) -> Result<u64> {
-    value
-        .parse::<u64>()
-        .map_err(|error| Error::FailedToParseInt {
-            context: "gas_price",
-            error,
-        })
-}
-
-fn dependencies(values: &[&str]) -> Result<Vec<DeployHash>> {
-    let mut hashes = Vec::with_capacity(values.len());
-    for value in values {
-        let digest =
-            Digest::from_hex(value).map_err(|error| map_hashing_error(error)("dependencies"))?;
-        hashes.push(DeployHash::new(digest))
+pub(super) fn session_account(value: &str) -> Result<Option<PublicKey>, CliError> {
+    if value.is_empty() {
+        return Ok(None);
     }
-    Ok(hashes)
+
+    let public_key = PublicKey::from_hex(value).map_err(|error| crate::Error::CryptoError {
+        context: "session account",
+        error: crate::CryptoError::from(error),
+    })?;
+    Ok(Some(public_key))
 }
 
 /// Handles providing the arg for and retrieval of simple session and payment args.
@@ -75,7 +94,7 @@ mod arg_simple {
     pub(crate) mod session {
         use super::*;
 
-        pub fn parse(values: &[&str]) -> Result<Option<RuntimeArgs>> {
+        pub fn parse(values: &[&str]) -> Result<Option<RuntimeArgs>, CliError> {
             Ok(if values.is_empty() {
                 None
             } else {
@@ -87,7 +106,7 @@ mod arg_simple {
     pub(crate) mod payment {
         use super::*;
 
-        pub fn parse(values: &[&str]) -> Result<Option<RuntimeArgs>> {
+        pub fn parse(values: &[&str]) -> Result<Option<RuntimeArgs>, CliError> {
             Ok(if values.is_empty() {
                 None
             } else {
@@ -96,7 +115,7 @@ mod arg_simple {
         }
     }
 
-    fn get(values: &[&str]) -> Result<RuntimeArgs> {
+    fn get(values: &[&str]) -> Result<RuntimeArgs, CliError> {
         let mut runtime_args = RuntimeArgs::new();
         for arg in values {
             let parts = split_arg(arg)?;
@@ -106,19 +125,19 @@ mod arg_simple {
     }
 
     /// Splits a single arg of the form `NAME:TYPE='VALUE'` into its constituent parts.
-    fn split_arg(arg: &str) -> Result<(&str, CLType, &str)> {
+    fn split_arg(arg: &str) -> Result<(&str, CLType, &str), CliError> {
         let parts: Vec<_> = arg.splitn(3, &[':', '='][..]).collect();
         if parts.len() != 3 {
-            return Err(Error::InvalidCLValue(format!(
+            return Err(CliError::InvalidCLValue(format!(
                 "arg {} should be formatted as {}",
                 arg, ARG_VALUE_NAME
             )));
         }
         let cl_type = cl_type::parse(parts[1]).map_err(|_| {
-            Error::InvalidCLValue(format!(
+            CliError::InvalidCLValue(format!(
                 "unknown variant {}, expected one of {}",
                 parts[1],
-                help::supported_cl_type_list()
+                cl_type::help::supported_cl_type_list()
             ))
         })?;
         Ok((parts[0], cl_type, parts[2]))
@@ -128,7 +147,7 @@ mod arg_simple {
     fn parts_to_cl_value(
         parts: (&str, CLType, &str),
         runtime_args: &mut RuntimeArgs,
-    ) -> Result<()> {
+    ) -> Result<(), CliError> {
         let (name, cl_type, value) = parts;
         let cl_value = cl_type::parts_to_cl_value(cl_type, value)?;
         runtime_args.insert_cl_value(name, cl_value);
@@ -218,11 +237,11 @@ mod args_complex {
     pub mod session {
         use super::*;
 
-        pub fn parse(path: &str) -> Result<Option<RuntimeArgs>> {
+        pub fn parse(path: &str) -> Result<Option<RuntimeArgs>, CliError> {
             if path.is_empty() {
                 return Ok(None);
             }
-            let runtime_args = get(path).map_err(|error| Error::IoError {
+            let runtime_args = get(path).map_err(|error| crate::Error::IoError {
                 context: format!("error reading session file at '{}'", path),
                 error,
             })?;
@@ -233,11 +252,11 @@ mod args_complex {
     pub mod payment {
         use super::*;
 
-        pub fn parse(path: &str) -> Result<Option<RuntimeArgs>> {
+        pub fn parse(path: &str) -> Result<Option<RuntimeArgs>, CliError> {
             if path.is_empty() {
                 return Ok(None);
             }
-            let runtime_args = get(path).map_err(|error| Error::IoError {
+            let runtime_args = get(path).map_err(|error| crate::Error::IoError {
                 context: format!("error reading payment file at '{}'", path),
                 error,
             })?;
@@ -259,25 +278,17 @@ mod args_complex {
 }
 
 const STANDARD_PAYMENT_ARG_NAME: &str = "amount";
-fn standard_payment(value: &str) -> Result<RuntimeArgs> {
+fn standard_payment(value: &str) -> Result<RuntimeArgs, CliError> {
     if value.is_empty() {
-        return Err(Error::InvalidCLValue(value.to_string()));
+        return Err(CliError::InvalidCLValue(value.to_string()));
     }
-    let arg = U512::from_dec_str(value).map_err(|err| Error::FailedToParseUint {
+    let arg = U512::from_dec_str(value).map_err(|err| CliError::FailedToParseUint {
         context: "amount",
         error: UIntParseError::FromDecStr(err),
     })?;
     let mut runtime_args = RuntimeArgs::new();
     runtime_args.insert(STANDARD_PAYMENT_ARG_NAME, arg)?;
     Ok(runtime_args)
-}
-
-pub(crate) fn secret_key(value: &str) -> Result<SecretKey> {
-    let path = PathBuf::from(value);
-    SecretKey::from_file(path).map_err(|error| Error::CryptoError {
-        context: "secret_key",
-        error,
-    })
 }
 
 fn args_from_simple_or_complex(
@@ -316,7 +327,7 @@ macro_rules! check_exactly_one_not_empty {
 
         if required_arguments.is_empty() {
             let required_param_names = vec![$((stringify!($x))),+];
-            return Err(Error::InvalidArgument {
+            return Err(CliError::InvalidArgument {
                 context: $site,
                 error: format!("Missing a required arg - exactly one of the following must be provided: {:?}", required_param_names),
             });
@@ -346,7 +357,7 @@ macro_rules! check_exactly_one_not_empty {
                     .iter()
                     .map(|(requirement_name, _)| requirement_name)
                     .collect::<Vec<_>>();
-                return Err(Error::InvalidArgument {
+                return Err(CliError::InvalidArgument {
                     context: $site,
                     error: format!("Field {} also requires following fields to be provided: {:?}", name, required_param_names),
                 });
@@ -360,7 +371,7 @@ macro_rules! check_exactly_one_not_empty {
             if !conflicting_fields.is_empty() {
                 conflicting_fields.push(format!("{}={}", name, value));
                 conflicting_fields.sort();
-                return Err(Error::ConflictingArguments{
+                return Err(CliError::ConflictingArguments{
                     context: $site,
                     args: conflicting_fields,
                 });
@@ -375,7 +386,7 @@ macro_rules! check_exactly_one_not_empty {
                 })
                 .collect::<Vec<String>>();
             non_empty_fields_with_values.sort();
-            return Err(Error::ConflictingArguments {
+            return Err(CliError::ConflictingArguments {
                 context: $site,
                 args: non_empty_fields_with_values,
             });
@@ -383,41 +394,9 @@ macro_rules! check_exactly_one_not_empty {
     }}
 }
 
-pub(super) fn parse_deploy_params(
-    secret_key: &str,
-    timestamp: &str,
-    ttl: &str,
-    gas_price: &str,
-    dependencies: &[&str],
-    chain_name: &str,
-    session_account: &str,
-) -> Result<DeployParams> {
-    let secret_key = self::secret_key(secret_key)?;
-    let timestamp = self::timestamp(timestamp)?;
-    let ttl = self::ttl(ttl)?;
-    let gas_price = self::gas_price(gas_price)?;
-    let dependencies = self::dependencies(dependencies)?;
-    let chain_name = chain_name.to_string();
-    let session_account = if !session_account.is_empty() {
-        let public_key =
-            PublicKey::from_hex(session_account).map_err(|_| Error::FailedToParseKey)?;
-        Some(public_key)
-    } else {
-        None
-    };
-
-    Ok(DeployParams {
-        secret_key,
-        timestamp,
-        ttl,
-        gas_price,
-        dependencies,
-        chain_name,
-        session_account,
-    })
-}
-
-pub(super) fn parse_session_info(params: SessionStrParams) -> Result<ExecutableDeployItem> {
+pub(super) fn session_executable_deploy_item(
+    params: SessionStrParams,
+) -> Result<ExecutableDeployItem, CliError> {
     let SessionStrParams {
         session_hash,
         session_name,
@@ -449,7 +428,7 @@ pub(super) fn parse_session_info(params: SessionStrParams) -> Result<ExecutableD
             requires[] requires_empty[session_entry_point, session_version]
     );
     if !session_args_simple.is_empty() && !session_args_complex.is_empty() {
-        return Err(Error::ConflictingArguments {
+        return Err(CliError::ConflictingArguments {
             context: "parse_session_info",
             args: vec!["session_args".to_owned(), "session_args_complex".to_owned()],
         });
@@ -461,14 +440,14 @@ pub(super) fn parse_session_info(params: SessionStrParams) -> Result<ExecutableD
     );
     if session_transfer {
         if session_args.is_empty() {
-            return Err(Error::InvalidArgument {
+            return Err(CliError::InvalidArgument {
                 context: "is_session_transfer",
                 error: "requires --session-arg to be present".to_string(),
             });
         }
         return Ok(ExecutableDeployItem::Transfer { args: session_args });
     }
-    let invalid_entry_point = || Error::InvalidArgument {
+    let invalid_entry_point = || CliError::InvalidArgument {
         context: "session_entry_point",
         error: session_entry_point.to_string(),
     };
@@ -480,7 +459,7 @@ pub(super) fn parse_session_info(params: SessionStrParams) -> Result<ExecutableD
         });
     }
 
-    if let Some(session_hash) = parse_contract_hash(session_hash)? {
+    if let Some(session_hash) = contract_hash(session_hash)? {
         return Ok(ExecutableDeployItem::StoredContractByHash {
             hash: session_hash.into(),
             entry_point: entry_point(session_entry_point).ok_or_else(invalid_entry_point)?,
@@ -498,7 +477,7 @@ pub(super) fn parse_session_info(params: SessionStrParams) -> Result<ExecutableD
         });
     }
 
-    if let Some(package_hash) = parse_contract_hash(session_package_hash)? {
+    if let Some(package_hash) = contract_hash(session_package_hash)? {
         return Ok(ExecutableDeployItem::StoredVersionedContractByHash {
             hash: package_hash.into(),
             version, // defaults to highest enabled version
@@ -507,7 +486,7 @@ pub(super) fn parse_session_info(params: SessionStrParams) -> Result<ExecutableD
         });
     }
 
-    let module_bytes = fs::read(session_path).map_err(|error| Error::IoError {
+    let module_bytes = fs::read(session_path).map_err(|error| crate::Error::IoError {
         context: format!("unable to read session file at '{}'", session_path),
         error,
     })?;
@@ -517,7 +496,9 @@ pub(super) fn parse_session_info(params: SessionStrParams) -> Result<ExecutableD
     })
 }
 
-pub(super) fn parse_payment_info(params: PaymentStrParams) -> Result<ExecutableDeployItem> {
+pub(super) fn payment_executable_deploy_item(
+    params: PaymentStrParams,
+) -> Result<ExecutableDeployItem, CliError> {
     let PaymentStrParams {
         payment_amount,
         payment_hash,
@@ -545,7 +526,7 @@ pub(super) fn parse_payment_info(params: PaymentStrParams) -> Result<ExecutableD
         (payment_path) requires[] requires_empty[payment_entry_point, payment_version],
     );
     if !payment_args_simple.is_empty() && !payment_args_complex.is_empty() {
-        return Err(Error::ConflictingArguments {
+        return Err(CliError::ConflictingArguments {
             context: "parse_payment_info",
             args: vec![
                 "payment_args_simple".to_owned(),
@@ -561,7 +542,7 @@ pub(super) fn parse_payment_info(params: PaymentStrParams) -> Result<ExecutableD
         });
     }
 
-    let invalid_entry_point = || Error::InvalidArgument {
+    let invalid_entry_point = || CliError::InvalidArgument {
         context: "payment_entry_point",
         error: payment_entry_point.to_string(),
     };
@@ -579,7 +560,7 @@ pub(super) fn parse_payment_info(params: PaymentStrParams) -> Result<ExecutableD
         });
     }
 
-    if let Some(payment_hash) = parse_contract_hash(payment_hash)? {
+    if let Some(payment_hash) = contract_hash(payment_hash)? {
         return Ok(ExecutableDeployItem::StoredContractByHash {
             hash: payment_hash.into(),
             entry_point: entry_point(payment_entry_point).ok_or_else(invalid_entry_point)?,
@@ -597,7 +578,7 @@ pub(super) fn parse_payment_info(params: PaymentStrParams) -> Result<ExecutableD
         });
     }
 
-    if let Some(package_hash) = parse_contract_hash(payment_package_hash)? {
+    if let Some(package_hash) = contract_hash(payment_package_hash)? {
         return Ok(ExecutableDeployItem::StoredVersionedContractByHash {
             hash: package_hash.into(),
             version, // defaults to highest enabled version
@@ -606,7 +587,7 @@ pub(super) fn parse_payment_info(params: PaymentStrParams) -> Result<ExecutableD
         });
     }
 
-    let module_bytes = fs::read(payment_path).map_err(|error| Error::IoError {
+    let module_bytes = fs::read(payment_path).map_err(|error| crate::Error::IoError {
         context: format!("unable to read payment file at '{}'", payment_path),
         error,
     })?;
@@ -616,41 +597,104 @@ pub(super) fn parse_payment_info(params: PaymentStrParams) -> Result<ExecutableD
     })
 }
 
-fn parse_contract_hash(value: &str) -> Result<Option<HashAddr>> {
+fn contract_hash(value: &str) -> Result<Option<HashAddr>, CliError> {
     if value.is_empty() {
         return Ok(None);
     }
-    if let Ok(digest) = Digest::from_hex(value) {
-        return Ok(Some(digest.value()));
+    match Digest::from_hex(value) {
+        Ok(digest) => Ok(Some(digest.value())),
+        Err(error) => {
+            if let Ok(Key::Hash(hash)) = Key::from_formatted_str(value) {
+                Ok(Some(hash))
+            } else {
+                Err(CliError::FailedToParseDigest {
+                    context: "contract hash",
+                    error,
+                })
+            }
+        }
     }
-    if let Ok(Key::Hash(hash)) = Key::from_formatted_str(value) {
-        return Ok(Some(hash));
-    }
-    Err(Error::FailedToParseKey)
 }
 
 fn name(value: &str) -> Option<String> {
-    none_if_empty(value).map(str::to_string)
+    if value.is_empty() {
+        return None;
+    }
+    Some(value.to_string())
 }
 
 fn entry_point(value: &str) -> Option<String> {
-    none_if_empty(value).map(str::to_string)
+    if value.is_empty() {
+        return None;
+    }
+    Some(value.to_string())
 }
 
-fn version(value: &str) -> Result<u32> {
+fn version(value: &str) -> Result<u32, CliError> {
     value
         .parse::<u32>()
-        .map_err(|error| Error::FailedToParseInt {
+        .map_err(|error| CliError::FailedToParseInt {
             context: "version",
             error,
         })
 }
 
-pub(crate) fn transfer_id(value: &str) -> Result<u64> {
-    value.parse().map_err(|error| Error::FailedToParseInt {
+pub(super) fn transfer_id(value: &str) -> Result<u64, CliError> {
+    value.parse().map_err(|error| CliError::FailedToParseInt {
         context: "transfer-id",
         error,
     })
+}
+
+pub(super) fn block_identifier(
+    maybe_block_identifier: &str,
+) -> Result<Option<BlockIdentifier>, CliError> {
+    if maybe_block_identifier.is_empty() {
+        return Ok(None);
+    }
+
+    if maybe_block_identifier.len() == (Digest::LENGTH * 2) {
+        let hash = Digest::from_hex(maybe_block_identifier).map_err(|error| {
+            CliError::FailedToParseDigest {
+                context: "block_identifier",
+                error,
+            }
+        })?;
+        Ok(Some(BlockIdentifier::Hash(BlockHash::new(hash))))
+    } else {
+        let height =
+            maybe_block_identifier
+                .parse()
+                .map_err(|error| CliError::FailedToParseInt {
+                    context: "block_identifier",
+                    error,
+                })?;
+        Ok(Some(BlockIdentifier::Height(height)))
+    }
+}
+
+pub(super) fn deploy_hash(deploy_hash: &str) -> Result<DeployHash, CliError> {
+    let hash = Digest::from_hex(deploy_hash).map_err(|error| CliError::FailedToParseDigest {
+        context: "deploy hash",
+        error,
+    })?;
+    Ok(DeployHash::new(hash))
+}
+
+pub(super) fn key_for_query(key: &str) -> Result<Key, CliError> {
+    match Key::from_formatted_str(key) {
+        Ok(key) => Ok(key),
+        Err(error) => {
+            if let Ok(public_key) = PublicKey::from_hex(key) {
+                Ok(Key::Account(public_key.to_account_hash()))
+            } else {
+                Err(CliError::FailedToParseKey {
+                    context: "key for query",
+                    error,
+                })
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -659,10 +703,7 @@ mod tests {
         account::AccountHash, bytesrepr::ToBytes, AccessRights, CLTyped, CLValue, NamedArg,
         PublicKey, RuntimeArgs, URef, U128, U256, U512,
     };
-    use std::{convert::TryFrom, io::Write, result::Result as StdResult};
-    use tempfile::tempdir;
-
-    use crate::{PaymentStrParams, SessionStrParams};
+    use std::convert::TryFrom;
 
     use super::*;
 
@@ -709,7 +750,6 @@ mod tests {
         pub const ENTRY_POINT: &str = "entrypoint";
         pub const VERSION: &str = "1.0.0";
         pub const TRANSFER: bool = true;
-        pub const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIFAr+JLnFaRwpqsAEbcYLfaDixKHGdBfFsPrLKS9VTMH\n-----END PRIVATE KEY-----";
     }
 
     fn invalid_simple_args_test(cli_string: &str) {
@@ -739,6 +779,22 @@ mod tests {
             arg_simple::session::parse(&[cli_string]).expect("should parse"),
             expected
         );
+    }
+
+    impl<'a> TryFrom<SessionStrParams<'a>> for ExecutableDeployItem {
+        type Error = CliError;
+
+        fn try_from(params: SessionStrParams<'a>) -> Result<ExecutableDeployItem, Self::Error> {
+            session_executable_deploy_item(params)
+        }
+    }
+
+    impl<'a> TryFrom<PaymentStrParams<'a>> for ExecutableDeployItem {
+        type Error = CliError;
+
+        fn try_from(params: PaymentStrParams<'a>) -> Result<ExecutableDeployItem, Self::Error> {
+            payment_executable_deploy_item(params)
+        }
     }
 
     #[test]
@@ -912,7 +968,7 @@ mod tests {
     #[test]
     fn should_fail_to_parse_conflicting_arg_types() {
         assert!(matches!(
-            parse_session_info(SessionStrParams {
+            session_executable_deploy_item(SessionStrParams {
                 session_hash: "",
                 session_name: "name",
                 session_package_hash: "",
@@ -924,14 +980,14 @@ mod tests {
                 session_entry_point: "entrypoint",
                 is_session_transfer: false
             }),
-            Err(Error::ConflictingArguments {
+            Err(CliError::ConflictingArguments {
                 context: "parse_session_info",
                 ..
             })
         ));
 
         assert!(matches!(
-            parse_payment_info(PaymentStrParams {
+            payment_executable_deploy_item(PaymentStrParams {
                 payment_amount: "",
                 payment_hash: "name",
                 payment_name: "",
@@ -943,7 +999,7 @@ mod tests {
                 payment_version: "",
                 payment_entry_point: "entrypoint",
             }),
-            Err(Error::ConflictingArguments {
+            Err(CliError::ConflictingArguments {
                 context: "parse_payment_info",
                 ..
             })
@@ -953,7 +1009,7 @@ mod tests {
     #[test]
     fn should_fail_to_parse_conflicting_session_parameters() {
         assert!(matches!(
-            parse_session_info(SessionStrParams {
+            session_executable_deploy_item(SessionStrParams {
                 session_hash: happy::HASH,
                 session_name: happy::NAME,
                 session_package_hash: happy::PACKAGE_HASH,
@@ -965,7 +1021,7 @@ mod tests {
                 session_entry_point: "",
                 is_session_transfer: false
             }),
-            Err(Error::ConflictingArguments {
+            Err(CliError::ConflictingArguments {
                 context: "parse_session_info",
                 ..
             })
@@ -975,7 +1031,7 @@ mod tests {
     #[test]
     fn should_fail_to_parse_conflicting_payment_parameters() {
         assert!(matches!(
-            parse_payment_info(PaymentStrParams {
+            payment_executable_deploy_item(PaymentStrParams {
                 payment_amount: "12345",
                 payment_hash: happy::HASH,
                 payment_name: happy::NAME,
@@ -987,7 +1043,7 @@ mod tests {
                 payment_version: "",
                 payment_entry_point: "",
             }),
-            Err(Error::ConflictingArguments {
+            Err(CliError::ConflictingArguments {
                 context: "parse_payment_info",
                 ..
             })
@@ -998,7 +1054,7 @@ mod tests {
     fn should_fail_to_parse_bad_session_args_complex() {
         let missing_file = "missing/file";
         assert!(matches!(
-            parse_session_info(SessionStrParams {
+            session_executable_deploy_item(SessionStrParams {
                 session_hash: happy::HASH,
                 session_name: "",
                 session_package_hash: "",
@@ -1010,10 +1066,10 @@ mod tests {
                 session_entry_point: "entrypoint",
                 is_session_transfer: false,
             }),
-            Err(Error::IoError {
+            Err(CliError::Core(crate::Error::IoError {
                 context,
                 ..
-            }) if context == format!("error reading session file at '{}'", missing_file)
+            })) if context == format!("error reading session file at '{}'", missing_file)
         ));
     }
 
@@ -1021,7 +1077,7 @@ mod tests {
     fn should_fail_to_parse_bad_payment_args_complex() {
         let missing_file = "missing/file";
         assert!(matches!(
-            parse_payment_info(PaymentStrParams {
+            payment_executable_deploy_item(PaymentStrParams {
                 payment_amount: "",
                 payment_hash: happy::HASH,
                 payment_name: "",
@@ -1033,213 +1089,143 @@ mod tests {
                 payment_version: "",
                 payment_entry_point: "entrypoint",
             }),
-            Err(Error::IoError {
+            Err(CliError::Core(crate::Error::IoError {
                 context,
                 ..
-            }) if context == format!("error reading payment file at '{}'", missing_file)
-        ));
-    }
-
-    #[test]
-    fn should_parse_valid_deploy_params() {
-        // create secret key file in tempdir.
-        let keys_dir = tempdir().expect("Failed to create temp dir.");
-        let secret_key_path = keys_dir.path().join("key.pem");
-        let secret_key_path_str = secret_key_path.to_str().unwrap();
-        let mut secret_key_file =
-            fs::File::create(&secret_key_path).expect("Failed to create test secret key file.");
-        write!(secret_key_file, "{}", happy::PRIVATE_KEY)
-            .expect("Failed to write data to test secret key file.");
-
-        // create a valid timestamp and convert it to &str.
-        let timestamp = Timestamp::now().to_string();
-        let timestamp = timestamp.as_str();
-
-        let params = parse_deploy_params(
-            secret_key_path_str,
-            timestamp,
-            "2sec",
-            "10000",
-            &[happy::HASH],
-            "test",
-            "",
-        );
-
-        assert!(params.is_ok());
-    }
-
-    #[test]
-    fn should_fail_to_parse_invalid_deploy_params() {
-        // create secret key file in tempdir.
-        let keys_dir = tempdir().expect("Failed to create temp dir.");
-        let secret_key_path = keys_dir.path().join("key.pem");
-        let secret_key_path_str = secret_key_path.to_str().unwrap();
-        let mut secret_key_file =
-            fs::File::create(&secret_key_path).expect("Failed to create test secret key file.");
-        write!(secret_key_file, "{}", happy::PRIVATE_KEY)
-            .expect("Failed to write data to test secret key file.");
-
-        // create a valid timestamp and convert it to &str.
-        let timestamp = Timestamp::now().to_string();
-        let timestamp = timestamp.as_str();
-
-        let result =
-            parse_deploy_params("bad file path", timestamp, "2sec", "10000", &[], "test", "");
-
-        // failed to parse secret key file path.
-        assert!(matches!(
-            result.err().expect("Result should be an Err."),
-            Error::CryptoError { .. }
-        ));
-
-        let result = parse_deploy_params(
-            secret_key_path_str,
-            "bad timestamp",
-            "2sec",
-            "10000",
-            &[],
-            "test",
-            "",
-        );
-
-        // failed to parse timestamp.
-        assert!(matches!(
-            result.err().expect("Result should be an Err."),
-            Error::FailedToParseTimestamp { .. }
-        ));
-
-        let result = parse_deploy_params(
-            secret_key_path_str,
-            timestamp,
-            "bad ttl",
-            "10000",
-            &[],
-            "test",
-            "",
-        );
-
-        // failed to parse ttl.
-        assert!(matches!(
-            result.err().expect("Result should be an Err."),
-            Error::FailedToParseTimeDiff { .. }
-        ));
-
-        let result = parse_deploy_params(
-            secret_key_path_str,
-            timestamp,
-            "2sec",
-            "bad gas price",
-            &[],
-            "test",
-            "",
-        );
-
-        // failed to parse gas price.
-        assert!(matches!(
-            result.err().expect("Result should be an Err."),
-            Error::FailedToParseInt { .. }
-        ));
-
-        let result = parse_deploy_params(
-            secret_key_path_str,
-            timestamp,
-            "2sec",
-            "10000",
-            &["bad deploy hash"],
-            "test",
-            "",
-        );
-
-        // failed to parse deploy hash.
-        assert!(matches!(
-            result.err().expect("Result should be an Err."),
-            Error::CryptoError { .. }
+            })) if context == format!("error reading payment file at '{}'", missing_file)
         ));
     }
 
     mod missing_args {
-
         use super::*;
 
-        /// Implements a unit test that ensures missing fields result in an error to the caller.
-        macro_rules! impl_test_missing_required_arg {
-            ($t:ident, $name:ident, $field:tt => $value:expr, missing: $missing:expr, context: $context:expr) => {
-                #[test]
-                fn $name() {
-                    let info: StdResult<ExecutableDeployItem, Error> = $t {
-                        $field: $value,
-                        ..Default::default()
-                    }
-                    .try_into();
+        #[test]
+        fn session_name_should_fail_to_parse_missing_entry_point() {
+            let result = session_executable_deploy_item(SessionStrParams {
+                session_name: happy::NAME,
+                ..Default::default()
+            });
 
-                    assert!(matches!(
-                        info,
-                        Err(Error::InvalidArgument {
-                            context: $context,
-                            error: _msg
-                        })
-                    ));
-                }
-            };
+            assert!(matches!(
+                result,
+                Err(CliError::InvalidArgument {
+                    context: "parse_session_info",
+                    ..
+                })
+            ));
         }
 
-        impl_test_missing_required_arg!(
-            SessionStrParams,
-            session_name_should_fail_to_parse_missing_entry_point,
-            session_name => happy::NAME,
-            missing: ["session_entry_point"],
-            context: "parse_session_info"
-        );
-        impl_test_missing_required_arg!(
-            SessionStrParams,
-            session_hash_should_fail_to_parse_missing_entry_point,
-            session_hash => happy::HASH,
-            missing: ["session_entry_point"],
-            context: "parse_session_info"
-        );
-        impl_test_missing_required_arg!(
-            SessionStrParams,
-            session_package_hash_should_fail_to_parse_missing_entry_point,
-            session_package_hash => happy::PACKAGE_HASH,
-            missing: ["session_entry_point"],
-            context: "parse_session_info"
-        );
-        impl_test_missing_required_arg!(
-            SessionStrParams,
-            session_package_name_should_fail_to_parse_missing_entry_point,
-            session_package_name => happy::PACKAGE_NAME,
-            missing: ["session_entry_point"],
-            context: "parse_session_info"
-        );
+        #[test]
+        fn session_hash_should_fail_to_parse_missing_entry_point() {
+            let result = session_executable_deploy_item(SessionStrParams {
+                session_hash: happy::HASH,
+                ..Default::default()
+            });
 
-        impl_test_missing_required_arg!(
-            PaymentStrParams,
-            payment_name_should_fail_to_parse_missing_entry_point,
-            payment_name => happy::NAME,
-            missing: ["payment_entry_point"],
-            context: "parse_payment_info"
-        );
-        impl_test_missing_required_arg!(
-            PaymentStrParams,
-            payment_hash_should_fail_to_parse_missing_entry_point,
-            payment_hash => happy::HASH,
-            missing: ["payment_entry_point"],
-            context: "parse_payment_info"
-        );
-        impl_test_missing_required_arg!(
-            PaymentStrParams,
-            payment_package_hash_should_fail_to_parse_missing_entry_point,
-            payment_package_hash => happy::HASH,
-            missing: ["payment_entry_point"],
-            context: "parse_payment_info"
-        );
-        impl_test_missing_required_arg!(
-            PaymentStrParams,
-            payment_package_name_should_fail_to_parse_missing_entry_point,
-            payment_package_name => happy::HASH,
-            missing: ["payment_entry_point"],
-            context: "parse_payment_info"
-        );
+            assert!(matches!(
+                result,
+                Err(CliError::InvalidArgument {
+                    context: "parse_session_info",
+                    ..
+                })
+            ));
+        }
+
+        #[test]
+        fn session_package_hash_should_fail_to_parse_missing_entry_point() {
+            let result = session_executable_deploy_item(SessionStrParams {
+                session_package_hash: happy::PACKAGE_HASH,
+                ..Default::default()
+            });
+
+            assert!(matches!(
+                result,
+                Err(CliError::InvalidArgument {
+                    context: "parse_session_info",
+                    ..
+                })
+            ));
+        }
+
+        #[test]
+        fn session_package_name_should_fail_to_parse_missing_entry_point() {
+            let result = session_executable_deploy_item(SessionStrParams {
+                session_package_name: happy::PACKAGE_NAME,
+                ..Default::default()
+            });
+
+            assert!(matches!(
+                result,
+                Err(CliError::InvalidArgument {
+                    context: "parse_session_info",
+                    ..
+                })
+            ));
+        }
+
+        #[test]
+        fn payment_name_should_fail_to_parse_missing_entry_point() {
+            let result = payment_executable_deploy_item(PaymentStrParams {
+                payment_name: happy::NAME,
+                ..Default::default()
+            });
+
+            assert!(matches!(
+                result,
+                Err(CliError::InvalidArgument {
+                    context: "parse_payment_info",
+                    ..
+                })
+            ));
+        }
+
+        #[test]
+        fn payment_hash_should_fail_to_parse_missing_entry_point() {
+            let result = payment_executable_deploy_item(PaymentStrParams {
+                payment_hash: happy::HASH,
+                ..Default::default()
+            });
+
+            assert!(matches!(
+                result,
+                Err(CliError::InvalidArgument {
+                    context: "parse_payment_info",
+                    ..
+                })
+            ));
+        }
+
+        #[test]
+        fn payment_package_hash_should_fail_to_parse_missing_entry_point() {
+            let result = payment_executable_deploy_item(PaymentStrParams {
+                payment_package_hash: happy::PACKAGE_HASH,
+                ..Default::default()
+            });
+
+            assert!(matches!(
+                result,
+                Err(CliError::InvalidArgument {
+                    context: "parse_payment_info",
+                    ..
+                })
+            ));
+        }
+
+        #[test]
+        fn payment_package_name_should_fail_to_parse_missing_entry_point() {
+            let result = payment_executable_deploy_item(PaymentStrParams {
+                payment_package_name: happy::PACKAGE_NAME,
+                ..Default::default()
+            });
+
+            assert!(matches!(
+                result,
+                Err(CliError::InvalidArgument {
+                    context: "parse_payment_info",
+                    ..
+                })
+            ));
+        }
     }
 
     mod conflicting_args {
@@ -1286,7 +1272,7 @@ mod tests {
         ///         conflicting.sort();
         ///         assert!(matches!(
         ///             info,
-        ///             Err(Error::ConflictingArguments {
+        ///             Err(CliError::ConflictingArguments {
         ///                 context: "parse_session_info",
         ///                 args: conflicting
         ///             }
@@ -1299,7 +1285,7 @@ mod tests {
             (
                 /// Struct for which to define the following tests. In our case, SessionStrParams or PaymentStrParams.
                 type: $t:ident,
-                /// Expected `context` field to be returned in the `Error::ConflictingArguments{ context, .. }` field.
+                /// Expected `context` field to be returned in the `CliError::ConflictingArguments{ context, .. }` field.
                 context: $context:expr,
 
                 /// $module will be our module name.
@@ -1324,7 +1310,7 @@ mod tests {
                     $(
                         #[test]
                         fn $test_fn_name() {
-                            let info: StdResult<ExecutableDeployItem, _> = $t {
+                            let info: Result<ExecutableDeployItem, _> = $t {
                                 $arg: $arg_value,
                                 $con: $con_value,
                                 $($req: $req_value,),*
@@ -1338,7 +1324,7 @@ mod tests {
                             conflicting.sort();
                             assert!(matches!(
                                 info,
-                                Err(Error::ConflictingArguments {
+                                Err(CliError::ConflictingArguments {
                                     context: $context,
                                     ..
                                 }
@@ -1365,20 +1351,20 @@ mod tests {
                 test[session_path => happy::PATH, conflict: session_name =>         happy::HASH,         requires[], path_conflicts_with_name]
                 test[session_path => happy::PATH, conflict: session_version =>      happy::VERSION,      requires[], path_conflicts_with_version]
                 test[session_path => happy::PATH, conflict: session_entry_point =>  happy::ENTRY_POINT,  requires[], path_conflicts_with_entry_point]
-                test[session_path => happy::PATH, conflict: is_session_transfer =>     happy::TRANSFER,     requires[], path_conflicts_with_transfer]
+                test[session_path => happy::PATH, conflict: is_session_transfer =>  happy::TRANSFER,     requires[], path_conflicts_with_transfer]
 
                 // name
                 test[session_name => happy::NAME, conflict: session_package_hash => happy::PACKAGE_HASH, requires[session_entry_point => happy::ENTRY_POINT], name_conflicts_with_package_hash]
                 test[session_name => happy::NAME, conflict: session_package_name => happy::PACKAGE_NAME, requires[session_entry_point => happy::ENTRY_POINT], name_conflicts_with_package_name]
                 test[session_name => happy::NAME, conflict: session_hash =>         happy::HASH,         requires[session_entry_point => happy::ENTRY_POINT], name_conflicts_with_hash]
                 test[session_name => happy::NAME, conflict: session_version =>      happy::VERSION,      requires[session_entry_point => happy::ENTRY_POINT], name_conflicts_with_version]
-                test[session_name => happy::NAME, conflict: is_session_transfer =>     happy::TRANSFER,     requires[session_entry_point => happy::ENTRY_POINT], name_conflicts_with_transfer]
+                test[session_name => happy::NAME, conflict: is_session_transfer =>  happy::TRANSFER,     requires[session_entry_point => happy::ENTRY_POINT], name_conflicts_with_transfer]
 
                 // hash
                 test[session_hash => happy::HASH, conflict: session_package_hash => happy::PACKAGE_HASH, requires[session_entry_point => happy::ENTRY_POINT], hash_conflicts_with_package_hash]
                 test[session_hash => happy::HASH, conflict: session_package_name => happy::PACKAGE_NAME, requires[session_entry_point => happy::ENTRY_POINT], hash_conflicts_with_package_name]
                 test[session_hash => happy::HASH, conflict: session_version =>      happy::VERSION,      requires[session_entry_point => happy::ENTRY_POINT], hash_conflicts_with_version]
-                test[session_hash => happy::HASH, conflict: is_session_transfer =>     happy::TRANSFER,     requires[session_entry_point => happy::ENTRY_POINT], hash_conflicts_with_transfer]
+                test[session_hash => happy::HASH, conflict: is_session_transfer =>  happy::TRANSFER,     requires[session_entry_point => happy::ENTRY_POINT], hash_conflicts_with_transfer]
                 // name <-> hash is already checked
                 // name <-> path is already checked
 
@@ -1454,5 +1440,207 @@ mod tests {
                 // package_hash <-> path is already checked
             ]
         ];
+    }
+
+    mod param_tests {
+        use super::*;
+
+        const HASH: &str = "09dcee4b212cfd53642ab323fbef07dafafc6f945a80a00147f62910a915c4e6";
+        const NAME: &str = "name";
+        const PKG_NAME: &str = "pkg_name";
+        const PKG_HASH: &str = "09dcee4b212cfd53642ab323fbef07dafafc6f945a80a00147f62910a915c4e6";
+        const ENTRYPOINT: &str = "entrypoint";
+        const VERSION: &str = "0.1.0";
+
+        fn args_simple() -> Vec<&'static str> {
+            vec!["name_01:bool='false'", "name_02:u32='42'"]
+        }
+
+        /// Sample data creation methods for PaymentStrParams
+        mod session_params {
+            use std::collections::BTreeMap;
+
+            use casper_types::CLValue;
+
+            use super::*;
+
+            #[test]
+            pub fn with_hash() {
+                let params: Result<ExecutableDeployItem, CliError> =
+                    SessionStrParams::with_hash(HASH, ENTRYPOINT, args_simple(), "").try_into();
+                match params {
+                    Ok(item @ ExecutableDeployItem::StoredContractByHash { .. }) => {
+                        let actual: BTreeMap<String, CLValue> = item.args().clone().into();
+                        let mut expected = BTreeMap::new();
+                        expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
+                        expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
+                        assert_eq!(actual, expected);
+                    }
+                    other => panic!("incorrect type parsed {:?}", other),
+                }
+            }
+
+            #[test]
+            pub fn with_name() {
+                let params: Result<ExecutableDeployItem, CliError> =
+                    SessionStrParams::with_name(NAME, ENTRYPOINT, args_simple(), "").try_into();
+                match params {
+                    Ok(item @ ExecutableDeployItem::StoredContractByName { .. }) => {
+                        let actual: BTreeMap<String, CLValue> = item.args().clone().into();
+                        let mut expected = BTreeMap::new();
+                        expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
+                        expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
+                        assert_eq!(actual, expected);
+                    }
+                    other => panic!("incorrect type parsed {:?}", other),
+                }
+            }
+
+            #[test]
+            pub fn with_package_name() {
+                let params: Result<ExecutableDeployItem, CliError> =
+                    SessionStrParams::with_package_name(
+                        PKG_NAME,
+                        VERSION,
+                        ENTRYPOINT,
+                        args_simple(),
+                        "",
+                    )
+                    .try_into();
+                match params {
+                    Ok(item @ ExecutableDeployItem::StoredVersionedContractByName { .. }) => {
+                        let actual: BTreeMap<String, CLValue> = item.args().clone().into();
+                        let mut expected = BTreeMap::new();
+                        expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
+                        expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
+                        assert_eq!(actual, expected);
+                    }
+                    other => panic!("incorrect type parsed {:?}", other),
+                }
+            }
+
+            #[test]
+            pub fn with_package_hash() {
+                let params: Result<ExecutableDeployItem, CliError> =
+                    SessionStrParams::with_package_hash(
+                        PKG_HASH,
+                        VERSION,
+                        ENTRYPOINT,
+                        args_simple(),
+                        "",
+                    )
+                    .try_into();
+                match params {
+                    Ok(item @ ExecutableDeployItem::StoredVersionedContractByHash { .. }) => {
+                        let actual: BTreeMap<String, CLValue> = item.args().clone().into();
+                        let mut expected = BTreeMap::new();
+                        expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
+                        expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
+                        assert_eq!(actual, expected);
+                    }
+                    other => panic!("incorrect type parsed {:?}", other),
+                }
+            }
+        }
+
+        /// Sample data creation methods for PaymentStrParams
+        mod payment_params {
+            use std::collections::BTreeMap;
+
+            use casper_types::{CLValue, U512};
+
+            use super::*;
+
+            #[test]
+            pub fn with_amount() {
+                let params: Result<ExecutableDeployItem, CliError> =
+                    PaymentStrParams::with_amount("100").try_into();
+                match params {
+                    Ok(item @ ExecutableDeployItem::ModuleBytes { .. }) => {
+                        let amount = CLValue::from_t(U512::from(100)).unwrap();
+                        assert_eq!(item.args().get("amount"), Some(&amount));
+                    }
+                    other => panic!("incorrect type parsed {:?}", other),
+                }
+            }
+
+            #[test]
+            pub fn with_hash() {
+                let params: Result<ExecutableDeployItem, CliError> =
+                    PaymentStrParams::with_hash(HASH, ENTRYPOINT, args_simple(), "").try_into();
+                match params {
+                    Ok(item @ ExecutableDeployItem::StoredContractByHash { .. }) => {
+                        let actual: BTreeMap<String, CLValue> = item.args().clone().into();
+                        let mut expected = BTreeMap::new();
+                        expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
+                        expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
+                        assert_eq!(actual, expected);
+                    }
+                    other => panic!("incorrect type parsed {:?}", other),
+                }
+            }
+
+            #[test]
+            pub fn with_name() {
+                let params: Result<ExecutableDeployItem, CliError> =
+                    PaymentStrParams::with_name(NAME, ENTRYPOINT, args_simple(), "").try_into();
+                match params {
+                    Ok(item @ ExecutableDeployItem::StoredContractByName { .. }) => {
+                        let actual: BTreeMap<String, CLValue> = item.args().clone().into();
+                        let mut expected = BTreeMap::new();
+                        expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
+                        expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
+                        assert_eq!(actual, expected);
+                    }
+                    other => panic!("incorrect type parsed {:?}", other),
+                }
+            }
+
+            #[test]
+            pub fn with_package_name() {
+                let params: Result<ExecutableDeployItem, CliError> =
+                    PaymentStrParams::with_package_name(
+                        PKG_NAME,
+                        VERSION,
+                        ENTRYPOINT,
+                        args_simple(),
+                        "",
+                    )
+                    .try_into();
+                match params {
+                    Ok(item @ ExecutableDeployItem::StoredVersionedContractByName { .. }) => {
+                        let actual: BTreeMap<String, CLValue> = item.args().clone().into();
+                        let mut expected = BTreeMap::new();
+                        expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
+                        expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
+                        assert_eq!(actual, expected);
+                    }
+                    other => panic!("incorrect type parsed {:?}", other),
+                }
+            }
+
+            #[test]
+            pub fn with_package_hash() {
+                let params: Result<ExecutableDeployItem, CliError> =
+                    PaymentStrParams::with_package_hash(
+                        PKG_HASH,
+                        VERSION,
+                        ENTRYPOINT,
+                        args_simple(),
+                        "",
+                    )
+                    .try_into();
+                match params {
+                    Ok(item @ ExecutableDeployItem::StoredVersionedContractByHash { .. }) => {
+                        let actual: BTreeMap<String, CLValue> = item.args().clone().into();
+                        let mut expected = BTreeMap::new();
+                        expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
+                        expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
+                        assert_eq!(actual, expected);
+                    }
+                    other => panic!("incorrect type parsed {:?}", other),
+                }
+            }
+        }
     }
 }

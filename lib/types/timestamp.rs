@@ -13,6 +13,14 @@ use casper_types::bytesrepr::{self, ToBytes};
 #[derive(Copy, Clone, Default, PartialOrd, Ord, PartialEq, Eq, Hash, Debug)]
 pub struct Timestamp(u64);
 
+impl Timestamp {
+    /// Returns the timestamp of the current moment.
+    pub fn now() -> Self {
+        let millis = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_millis() as u64;
+        Timestamp(millis)
+    }
+}
+
 impl Display for Timestamp {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         match SystemTime::UNIX_EPOCH.checked_add(Duration::from_millis(self.0)) {

@@ -13,11 +13,27 @@ All notable changes to this project will be documented in this file.  The format
 
 ## [Unreleased]
 
+### Added
+* Add new general-purpose API to library, not specific to CLI consumers.
+* Add types to avoid depending upon `casper-node` and `casper-execution-engine` crates.
+* Add support for new node RPC method `info_get_chainspec`, used in the binary's new `get-chainspec` subcommand.
+* Add support for new node RPC method `info_get_status`, used in the binary's new `get-node-status` subcommand.
+* Add support for new node RPC method `info_get_peers`, used in the binary's new `get-peers` subcommand.
+
+### Changed
+* Update dependencies.
+* Move the previous top-level library API, which targets CLI consumers, to a new module `cli`.
+* Rename subcommand `get-account-info` to `get-account` while retaining the previous name as an alias for backwards compatibility.
+* Rename subcommand `get-era-info-by-switch-block` to `get-era-info` while retaining the previous name as an alias for backwards compatibility.
+
 ### Removed
 * Remove the C library support.
+* Remove dependency on `casper-node` and `casper-execution-engine` crates.
+* Remove support for inputting non-default values for `gas_price` and `dependencies` in `Deploy` creation.
+* Remove partial merkle-proof validation of some JSON-RPC responses.
 
 ### Fixed
-* Restore the `-p` short form of `--public-key` arg for `get-account-info` and `account-address` subcommands.
+* Restore the `-p` short form of `--public-key` arg for `get-account` and `account-address` subcommands.
 
 
 

@@ -59,10 +59,10 @@ default = ["ffi"]
 ffi = ["cbindgen"]
 
 [patch.crates-io]
-casper-execution-engine = { git = "https://github.com/casper-network/casper-node", branch = "feat-fast-sync" }
-casper-node = { git = "https://github.com/casper-network/casper-node", branch = "feat-fast-sync" }
-casper-hashing = { git = "https://github.com/casper-network/casper-node", branch = "feat-fast-sync" }
-casper-types = { git = "https://github.com/casper-network/casper-node", branch = "feat-fast-sync" }
+casper-execution-engine = { git = "https://github.com/casper-network/casper-node", branch = "dev" }
+casper-node = { git = "https://github.com/casper-network/casper-node", branch = "dev" }
+casper-hashing = { git = "https://github.com/casper-network/casper-node", branch = "dev" }
+casper-types = { git = "https://github.com/casper-network/casper-node", branch = "dev" }
 
 [package.metadata.deb]
 features = ["vendored-openssl"]

@@ -12,18 +12,18 @@ use casper_node::{
         chain::{BlockIdentifier, EraSummary, GetEraInfoResult},
         state::GlobalStateIdentifier,
     },
-    types::{
-        json_compatibility, Block, BlockHeader, BlockValidationError, JsonBlock, JsonBlockHeader,
-    },
+    types::json_compatibility,
 };
 use casper_types::{bytesrepr, Key, StoredValue, U512};
+
+use crate::types::{self, Block, BlockHash, BlockHeader};
 
 const GET_ITEM_RESULT_BALANCE_VALUE: &str = "balance_value";
 const GET_ITEM_RESULT_STORED_VALUE: &str = "stored_value";
 const GET_ITEM_RESULT_MERKLE_PROOF: &str = "merkle_proof";
 const QUERY_GLOBAL_STATE_BLOCK_HEADER: &str = "block_header";
 
-/// Error that can be returned when validating a block returned from a JSON-RPC method.
+/// Error that can be returned when validating data returned from a JSON-RPC method.
 #[derive(Error, Debug)]
 pub enum ValidateResponseError {
     /// Failed to marshall value.
@@ -35,31 +35,53 @@ pub enum ValidateResponseError {
     Serde(#[from] serde_json::Error),
 
     /// Failed to parse JSON.
-    #[error("validate_response failed to parse")]
+    #[error("Validate response failed to parse")]
     ValidateResponseFailedToParse,
 
     /// Failed to validate Merkle proofs.
     #[error(transparent)]
     ValidationError(#[from] ValidationError),
 
-    /// Failed to validate a block.
-    #[error("Block validation error {0}")]
-    BlockValidationError(BlockValidationError),
+    /// The body hash in the header is not the same as the hash of the body of the block.
+    #[error(
+        "Block header has incorrect body hash. \
+         Actual block body hash: {actual_block_body_hash:?}, \
+         Block: {block:?}"
+    )]
+    BodyHashMismatch {
+        /// The `Block` with the `BlockHeader` with the incorrect block body hash.
+        block: Box<Block>,
+        /// The actual hash of the block's `BlockBody`.
+        actual_block_body_hash: Digest,
+    },
+
+    /// The block's hash is not the same as the header's hash.
+    #[error(
+        "Block has incorrect block hash. \
+         Actual block body hash: {actual_block_header_hash:?}, \
+         Block: {block:?}"
+    )]
+    BlockHashMismatch {
+        /// The `Block` with the incorrect `BlockHeaderHash`
+        block: Box<Block>,
+        /// The actual hash of the block's `BlockHeader`
+        actual_block_header_hash: BlockHash,
+    },
 
     /// Serialized value not contained in proof.
-    #[error("serialized value not contained in proof")]
+    #[error("Serialized value not contained in proof")]
     SerializedValueNotContainedInProof,
 
     /// No block in response.
-    #[error("no block in response")]
+    #[error("No block in response")]
     NoBlockInResponse,
 
     /// Block hash requested does not correspond to response.
-    #[error("block hash requested does not correspond to response")]
+    #[error("Block hash requested does not correspond to response")]
     UnexpectedBlockHash,
 
     /// Block height was not as requested.
-    #[error("block height was not as requested")]
+    #[error("Block height was not as requested")]
     UnexpectedBlockHeight,
 
     /// An invalid combination of state identifier and block header response
@@ -70,12 +92,6 @@ pub enum ValidateResponseError {
 impl From<bytesrepr::Error> for ValidateResponseError {
     fn from(e: bytesrepr::Error) -> Self {
         ValidateResponseError::BytesRepr(e)
-    }
-}
-
-impl From<BlockValidationError> for ValidateResponseError {
-    fn from(e: BlockValidationError) -> Self {
-        ValidateResponseError::BlockValidationError(e)
     }
 }
 
@@ -210,21 +226,18 @@ pub(crate) fn validate_query_global_state(
         last_proof.value()
     };
 
-    let json_block_header_value = object
+    let block_header_value = object
         .get(QUERY_GLOBAL_STATE_BLOCK_HEADER)
         .ok_or(ValidateResponseError::ValidateResponseFailedToParse)?;
-    let maybe_json_block_header: Option<JsonBlockHeader> =
-        serde_json::from_value(json_block_header_value.to_owned())?;
+    let maybe_block_header: Option<BlockHeader> =
+        serde_json::from_value(block_header_value.to_owned())?;
 
-    let state_root_hash = match (state_identifier, maybe_json_block_header) {
+    let state_root_hash = match (state_identifier, maybe_block_header) {
         (GlobalStateIdentifier::BlockHash(_), None)
         | (GlobalStateIdentifier::StateRootHash(_), Some(_)) => {
             return Err(ValidateResponseError::InvalidGlobalStateResponse);
         }
-        (GlobalStateIdentifier::BlockHash(_), Some(json_header)) => {
-            let block_header = BlockHeader::from(json_header);
-            *block_header.state_root_hash()
-        }
+        (GlobalStateIdentifier::BlockHash(_), Some(block_header)) => block_header.state_root_hash(),
         (GlobalStateIdentifier::StateRootHash(hash), None) => hash,
     };
 
@@ -277,26 +290,33 @@ pub(crate) fn validate_get_block_response(
     maybe_block_identifier: &Option<BlockIdentifier>,
 ) -> Result<(), ValidateResponseError> {
     let maybe_result = response.get_result();
-    let json_block_value = maybe_result
+    let block_value = maybe_result
         .and_then(|value| value.get("block"))
         .ok_or(ValidateResponseError::NoBlockInResponse)?;
-    let maybe_json_block: Option<JsonBlock> = serde_json::from_value(json_block_value.to_owned())?;
-    let json_block = if let Some(json_block) = maybe_json_block {
-        json_block
+    let maybe_block: Option<Block> = serde_json::from_value(block_value.to_owned())?;
+    let block = if let Some(block) = maybe_block {
+        block
     } else {
         return Ok(());
     };
-    let block = Block::from(json_block);
-    block.verify()?;
+
+    match types::validate_block_hashes_v1(&block) {
+        Ok(()) => {}
+        Err(v1_error) => match types::validate_block_hashes_v2(&block) {
+            Ok(()) => {}
+            Err(_v2_error) => return Err(v1_error),
+        },
+    }
+
     match maybe_block_identifier {
         Some(BlockIdentifier::Hash(block_hash)) => {
-            if block_hash != block.hash() {
+            if *block_hash.inner() != block.hash().inner() {
                 return Err(ValidateResponseError::UnexpectedBlockHash);
             }
         }
         Some(BlockIdentifier::Height(height)) => {
             // More is necessary here to mitigate a MITM attack
-            if height != &block.height() {
+            if height != &block.header().height() {
                 return Err(ValidateResponseError::UnexpectedBlockHeight);
             }
         }

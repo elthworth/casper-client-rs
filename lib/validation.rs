@@ -126,14 +126,8 @@ pub(crate) fn validate_get_era_info_response(
                 _ => return Err(ValidateResponseError::ValidateResponseFailedToParse),
             };
 
-            core::validate_query_proof(
-                &state_root_hash,
-                &proofs,
-                &key,
-                path,
-                &proof_value,
-            )
-            .map_err(Into::into)
+            core::validate_query_proof(&state_root_hash, &proofs, &key, path, &proof_value)
+                .map_err(Into::into)
         }
         None => Ok(()),
     }
@@ -189,8 +183,7 @@ pub(crate) fn validate_query_response(
         }
     }
 
-    core::validate_query_proof(state_root_hash, &proofs, key, path, proof_value)
-        .map_err(Into::into)
+    core::validate_query_proof(state_root_hash, &proofs, key, path, proof_value).map_err(Into::into)
 }
 
 pub(crate) fn validate_query_global_state(

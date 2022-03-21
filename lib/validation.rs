@@ -126,14 +126,8 @@ pub(crate) fn validate_get_era_info_response(
                 _ => return Err(ValidateResponseError::ValidateResponseFailedToParse),
             };
 
-            core::validate_query_proof(
-                &state_root_hash.to_owned(),
-                &proofs,
-                &key,
-                path,
-                &proof_value,
-            )
-            .map_err(Into::into)
+            core::validate_query_proof(&state_root_hash, &proofs, &key, path, &proof_value)
+                .map_err(Into::into)
         }
         None => Ok(()),
     }
@@ -189,8 +183,7 @@ pub(crate) fn validate_query_response(
         }
     }
 
-    core::validate_query_proof(&state_root_hash.to_owned(), &proofs, key, path, proof_value)
-        .map_err(Into::into)
+    core::validate_query_proof(state_root_hash, &proofs, key, path, proof_value).map_err(Into::into)
 }
 
 pub(crate) fn validate_query_global_state(
@@ -241,7 +234,7 @@ pub(crate) fn validate_query_global_state(
         (GlobalStateIdentifier::StateRootHash(hash), None) => hash,
     };
 
-    core::validate_query_proof(&state_root_hash.to_owned(), &proofs, key, path, proof_value)
+    core::validate_query_proof(&state_root_hash, &proofs, key, path, proof_value)
         .map_err(Into::into)
 }
 
@@ -281,7 +274,7 @@ pub(crate) fn validate_get_balance_response(
             .map_err(|_| ValidateResponseError::ValidateResponseFailedToParse)?
     };
 
-    core::validate_balance_proof(&state_root_hash.to_owned(), &balance_proof, *key, &balance)
+    core::validate_balance_proof(state_root_hash, &balance_proof, *key, &balance)
         .map_err(Into::into)
 }
 

@@ -3,12 +3,12 @@ name: ci-casper-client-rs
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths-ignore:
       - '**.md'
 
   pull_request:
-    branches: [main]
+    branches: [main, dev]
     paths-ignore:
       - '**.md'
 
@@ -38,7 +38,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: audit
-          args: --ignore RUSTSEC-2020-0071 --ignore RUSTSEC-2020-0159
+          args: --ignore RUSTSEC-2020-0071 --ignore RUSTSEC-2020-0159 --ignore RUSTSEC-2022-0013
 
       - name: Clippy
         uses: actions-rs/cargo@v1

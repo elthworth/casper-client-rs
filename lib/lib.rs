@@ -15,8 +15,6 @@
 mod cl_type;
 mod deploy;
 mod error;
-#[cfg(feature = "ffi")]
-pub mod ffi;
 pub mod keygen;
 mod parsing;
 mod rpc;

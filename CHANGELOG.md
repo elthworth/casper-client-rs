@@ -13,6 +13,9 @@ All notable changes to this project will be documented in this file.  The format
 
 ## [Unreleased]
 
+### Removed
+* Remove the C library support.
+
 ### Fixed
 * Restore the `-p` short form of `--public-key` arg for `get-account-info` and `account-address` subcommands.
 

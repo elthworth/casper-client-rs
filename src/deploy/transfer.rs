@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 use casper_client::{DeployStrParams, Error};
 
@@ -11,21 +11,21 @@ pub(super) mod amount {
     use super::*;
 
     const ARG_NAME: &str = "amount";
-    const ARG_SHORT: &str = "a";
+    const ARG_SHORT: char = 'a';
     const ARG_VALUE_NAME: &str = "512-BIT INTEGER";
     const ARG_HELP: &str = "The number of motes to transfer";
 
-    pub(in crate::deploy) fn arg() -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(in crate::deploy) fn arg() -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
-            .required_unless(creation_common::show_arg_examples::ARG_NAME)
+            .required_unless_present(creation_common::show_arg_examples::ARG_NAME)
             .value_name(ARG_VALUE_NAME)
             .help(ARG_HELP)
             .display_order(DisplayOrder::TransferAmount as usize)
     }
 
-    pub(in crate::deploy) fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub(in crate::deploy) fn get(matches: &ArgMatches) -> &str {
         matches
             .value_of(ARG_NAME)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
@@ -37,7 +37,7 @@ pub(super) mod target_account {
     use super::*;
 
     pub(in crate::deploy) const ARG_NAME: &str = "target-account";
-    const ARG_SHORT: &str = "t";
+    const ARG_SHORT: char = 't';
     const ARG_VALUE_NAME: &str = "FORMATTED STRING";
     const ARG_HELP: &str =
         "Account hash, uref or hex-encoded public key of the account from which the main purse will be used as the \
@@ -45,17 +45,17 @@ pub(super) mod target_account {
 
     // Conflicts with --target-purse, but that's handled via an `ArgGroup` in the subcommand. Don't
     // add a `conflicts_with()` to the arg or the `ArgGroup` fails to work correctly.
-    pub(in crate::deploy) fn arg() -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(in crate::deploy) fn arg() -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
-            .required_unless(creation_common::show_arg_examples::ARG_NAME)
+            .required_unless_present(creation_common::show_arg_examples::ARG_NAME)
             .value_name(ARG_VALUE_NAME)
             .help(ARG_HELP)
             .display_order(DisplayOrder::TransferTargetAccount as usize)
     }
 
-    pub(in crate::deploy) fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub(in crate::deploy) fn get(matches: &ArgMatches) -> &str {
         matches.value_of(ARG_NAME).unwrap_or_default()
     }
 }
@@ -65,21 +65,21 @@ pub(super) mod transfer_id {
     use super::*;
 
     pub(in crate::deploy) const ARG_NAME: &str = "transfer-id";
-    const ARG_SHORT: &str = "i";
+    const ARG_SHORT: char = 'i';
     const ARG_VALUE_NAME: &str = "64-BIT INTEGER";
     const ARG_HELP: &str = "User-defined identifier, permanently associated with the transfer";
 
-    pub(in crate::deploy) fn arg() -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(in crate::deploy) fn arg() -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
-            .required_unless(creation_common::show_arg_examples::ARG_NAME)
+            .required_unless_present(creation_common::show_arg_examples::ARG_NAME)
             .value_name(ARG_VALUE_NAME)
             .help(ARG_HELP)
             .display_order(DisplayOrder::TransferId as usize)
     }
 
-    pub(in crate::deploy) fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub(in crate::deploy) fn get(matches: &ArgMatches) -> &str {
         matches.value_of(ARG_NAME).unwrap_or_default()
     }
 }
@@ -87,12 +87,12 @@ pub(super) mod transfer_id {
 pub struct Transfer {}
 
 #[async_trait]
-impl<'a, 'b> ClientCommand<'a, 'b> for Transfer {
+impl ClientCommand for Transfer {
     const NAME: &'static str = "transfer";
     const ABOUT: &'static str = "Transfers funds between purses";
 
-    fn build(display_order: usize) -> App<'a, 'b> {
-        let subcommand = SubCommand::with_name(Self::NAME)
+    fn build(display_order: usize) -> Command<'static> {
+        let subcommand = Command::new(Self::NAME)
             .about(Self::ABOUT)
             .display_order(display_order)
             .arg(common::verbose::arg(DisplayOrder::Verbose as usize))
@@ -104,7 +104,7 @@ impl<'a, 'b> ClientCommand<'a, 'b> for Transfer {
         creation_common::apply_common_creation_options(subcommand, true)
     }
 
-    async fn run(matches: &ArgMatches<'a>) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
         creation_common::show_arg_examples_and_exit_if_required(matches);
 
         let amount = amount::get(matches);

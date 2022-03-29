@@ -1,7 +1,8 @@
 use std::{fs::File, path::PathBuf, process, str::FromStr};
 
 use async_trait::async_trait;
-use clap::{crate_name, App, Arg, ArgMatches, Shell, SubCommand};
+use clap::{crate_name, Arg, ArgMatches, Command};
+use clap_complete::Shell;
 
 use casper_client::Error;
 
@@ -9,35 +10,32 @@ use crate::{command::ClientCommand, common, Success};
 
 /// This struct defines the order in which the args are shown for this subcommand's help message.
 enum DisplayOrder {
-    OutputFile,
+    OutputDir,
     Force,
     Shell,
 }
 
-/// Handles providing the arg for and retrieval of the output file.
-mod output_file {
+/// Handles providing the arg for and retrieval of the output directory.
+mod output_dir {
     use super::*;
-    use once_cell::sync::Lazy;
 
-    const ARG_NAME: &str = "output";
-    const ARG_NAME_SHORT: &str = "o";
+    const ARG_NAME: &str = "output-dir";
+    const ARG_SHORT: char = 'o';
     const ARG_VALUE_NAME: &str = common::ARG_PATH;
     const ARG_HELP: &str =
-        "Path to output file. If the path's parent folder doesn't exist, the command will fail. \
-        Default path normally requires running the command with sudo";
+        "Path to output directory. If the path doesn't exist, the command will fail. Default path \
+        normally requires running the command with sudo";
+    const ARG_DEFAULT: &str = "/usr/share/bash-completion/completions";
 
-    static ARG_DEFAULT: Lazy<String> =
-        Lazy::new(|| format!("/usr/share/bash-completion/completions/{}", crate_name!()));
-
-    pub(super) fn arg() -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(super) fn arg() -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
-            .short(ARG_NAME_SHORT)
+            .short(ARG_SHORT)
             .required(false)
-            .default_value(&*ARG_DEFAULT)
+            .default_value(ARG_DEFAULT)
             .value_name(ARG_VALUE_NAME)
             .help(ARG_HELP)
-            .display_order(DisplayOrder::OutputFile as usize)
+            .display_order(DisplayOrder::OutputDir as usize)
     }
 
     pub(super) fn get(matches: &ArgMatches) -> PathBuf {
@@ -57,12 +55,12 @@ mod shell {
     const ARG_DEFAULT: &str = "bash";
     const ARG_HELP: &str = "The type of shell to generate the completion script for";
 
-    pub fn arg() -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub fn arg() -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .required(false)
             .default_value(ARG_DEFAULT)
-            .possible_values(&Shell::variants()[..])
+            .possible_values(Shell::possible_values())
             .value_name(ARG_VALUE_NAME)
             .help(ARG_HELP)
             .display_order(DisplayOrder::Shell as usize)
@@ -81,43 +79,45 @@ mod shell {
 pub struct GenerateCompletion {}
 
 #[async_trait]
-impl<'a, 'b> ClientCommand<'a, 'b> for GenerateCompletion {
+impl ClientCommand for GenerateCompletion {
     const NAME: &'static str = "generate-completion";
     const ABOUT: &'static str = "Generates a shell completion script";
 
-    fn build(display_order: usize) -> App<'a, 'b> {
-        SubCommand::with_name(Self::NAME)
+    fn build(display_order: usize) -> Command<'static> {
+        Command::new(Self::NAME)
             .about(Self::ABOUT)
             .display_order(display_order)
-            .arg(output_file::arg())
+            .arg(output_dir::arg())
             .arg(common::force::arg(DisplayOrder::Force as usize, true))
             .arg(shell::arg())
     }
 
-    async fn run(matches: &ArgMatches<'a>) -> Result<Success, Error> {
-        let output_path = output_file::get(matches);
+    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+        let output_dir = output_dir::get(matches);
         let force = common::force::get(matches);
         let shell = shell::get(matches);
+        let output_file_path = output_dir.join(crate_name!());
 
-        if !force && output_path.exists() {
+        if !force && output_file_path.exists() {
             eprintln!(
                 "{} exists. To overwrite, rerun with --{}",
-                output_path.display(),
+                output_file_path.display(),
                 common::force::ARG_NAME
             );
             process::exit(1);
         }
 
-        let mut output_file = File::create(&output_path).map_err(|error| Error::IoError {
-            context: output_path.display().to_string(),
+        let mut output_file = File::create(&output_file_path).map_err(|error| Error::IoError {
+            context: output_file_path.display().to_string(),
             error,
         })?;
-        super::cli().gen_completions_to(crate_name!(), shell, &mut output_file);
+
+        clap_complete::generate(shell, &mut super::cli(), crate_name!(), &mut output_file);
 
         Ok(Success::Output(format!(
             "Wrote completion script for {} to {}",
             shell,
-            output_path.display()
+            output_dir.display()
         )))
     }
 }

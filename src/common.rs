@@ -15,22 +15,26 @@ pub mod verbose {
     use super::*;
 
     pub const ARG_NAME: &str = "verbose";
-    const ARG_NAME_SHORT: &str = "v";
+    const ARG_NAME_SHORT: char = 'v';
     const ARG_HELP: &str =
         "Generates verbose output, e.g. prints the RPC request.  If repeated by using '-vv' then \
         all output will be extra verbose, meaning that large JSON strings will be shown in full";
 
-    pub fn arg(order: usize) -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub fn arg(order: usize) -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .short(ARG_NAME_SHORT)
             .required(false)
-            .multiple(true)
+            .multiple_occurrences(true)
             .help(ARG_HELP)
             .display_order(order)
     }
 
     pub fn get(matches: &ArgMatches) -> u64 {
-        matches.occurrences_of(ARG_NAME)
+        if matches.is_valid_arg(ARG_NAME) {
+            matches.occurrences_of(ARG_NAME)
+        } else {
+            0
+        }
     }
 }
 
@@ -39,23 +43,23 @@ pub mod node_address {
     use super::*;
 
     const ARG_NAME: &str = "node-address";
-    const ARG_SHORT: &str = "n";
+    const ARG_SHORT: char = 'n';
     const ARG_VALUE_NAME: &str = "HOST:PORT";
     const ARG_DEFAULT: &str = "http://localhost:7777";
     const ARG_HELP: &str = "Hostname or IP and port of node on which HTTP service is running";
 
-    pub fn arg(order: usize) -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub fn arg(order: usize) -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
-            .required(true)
+            .required(false)
             .default_value(ARG_DEFAULT)
             .value_name(ARG_VALUE_NAME)
             .help(ARG_HELP)
             .display_order(order)
     }
 
-    pub fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub fn get(matches: &ArgMatches) -> &str {
         matches
             .value_of(ARG_NAME)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
@@ -72,8 +76,8 @@ pub mod rpc_id {
         "JSON-RPC identifier, applied to the request and returned in the response. If not \
         provided, a random integer will be assigned";
 
-    pub fn arg(order: usize) -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub fn arg(order: usize) -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .required(false)
             .value_name(ARG_VALUE_NAME)
@@ -81,7 +85,7 @@ pub mod rpc_id {
             .display_order(order)
     }
 
-    pub fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub fn get(matches: &ArgMatches) -> &str {
         matches.value_of(ARG_NAME).unwrap_or_default()
     }
 }
@@ -91,21 +95,20 @@ pub mod secret_key {
     use super::*;
 
     const ARG_NAME: &str = "secret-key";
-    const ARG_SHORT: &str = "k";
+    const ARG_SHORT: char = 'k';
     const ARG_VALUE_NAME: &str = super::ARG_PATH;
     const ARG_HELP: &str = "Path to secret key file";
 
-    pub fn arg(order: usize) -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub fn arg(order: usize) -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
-            .required(true)
             .value_name(ARG_VALUE_NAME)
             .help(ARG_HELP)
             .display_order(order)
     }
 
-    pub fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub fn get(matches: &ArgMatches) -> &str {
         matches
             .value_of(ARG_NAME)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
@@ -117,7 +120,7 @@ pub mod force {
     use super::*;
 
     pub const ARG_NAME: &str = "force";
-    const ARG_NAME_SHORT: &str = "f";
+    const ARG_SHORT: char = 'f';
     const ARG_HELP_SINGULAR: &str =
         "If this flag is passed and the output file already exists, it will be overwritten. \
         Without this flag, if the output file already exists, the command will fail";
@@ -125,10 +128,10 @@ pub mod force {
         "If this flag is passed, any existing output files will be overwritten. Without this flag, \
         if any output file exists, no output files will be generated and the command will fail";
 
-    pub fn arg(order: usize, singular: bool) -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub fn arg(order: usize, singular: bool) -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
-            .short(ARG_NAME_SHORT)
+            .short(ARG_SHORT)
             .required(false)
             .help(if singular {
                 ARG_HELP_SINGULAR
@@ -148,12 +151,12 @@ pub mod state_root_hash {
     use super::*;
 
     const ARG_NAME: &str = "state-root-hash";
-    const ARG_SHORT: &str = "s";
+    const ARG_SHORT: char = 's';
     const ARG_VALUE_NAME: &str = super::ARG_HEX_STRING;
     const ARG_HELP: &str = "Hex-encoded hash of the state root";
 
-    pub(crate) fn arg(order: usize) -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(crate) fn arg(order: usize) -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
             .required(true)
@@ -162,7 +165,7 @@ pub mod state_root_hash {
             .display_order(order)
     }
 
-    pub(crate) fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub(crate) fn get(matches: &ArgMatches) -> &str {
         matches
             .value_of(ARG_NAME)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
@@ -174,14 +177,14 @@ pub mod block_identifier {
     use super::*;
 
     const ARG_NAME: &str = "block-identifier";
-    const ARG_SHORT: &str = "b";
+    const ARG_SHORT: char = 'b';
     const ARG_VALUE_NAME: &str = "HEX STRING OR INTEGER";
     const ARG_HELP: &str =
         "Hex-encoded block hash or height of the block. If not given, the last block added to the \
         chain as known at the given node will be used";
 
-    pub(crate) fn arg(order: usize) -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(crate) fn arg(order: usize) -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
             .required(false)
@@ -190,7 +193,7 @@ pub mod block_identifier {
             .display_order(order)
     }
 
-    pub(crate) fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub(crate) fn get(matches: &ArgMatches) -> &str {
         matches.value_of(ARG_NAME).unwrap_or_default()
     }
 }
@@ -210,8 +213,8 @@ mod sealed_public_key {
         arg_name: &'static str,
         arg_help: &'static str,
         required: bool,
-    ) -> Arg<'static, 'static> {
-        Arg::with_name(arg_name)
+    ) -> Arg<'static> {
+        Arg::new(arg_name)
             .long(arg_name)
             .required(required)
             .value_name(ARG_VALUE_NAME)
@@ -258,7 +261,7 @@ pub(super) mod public_key {
     use super::*;
 
     const ARG_NAME: &str = "public-key";
-    const ARG_SHORT: &str = "p";
+    const ARG_SHORT: char = 'p';
     const IS_REQUIRED: bool = true;
     const ARG_HELP: &str =
         "This must be a properly formatted public key. The public key may instead be read in from \
@@ -266,7 +269,7 @@ pub(super) mod public_key {
         should be one of the two public key files generated via the `keygen` subcommand; \
         \"public_key_hex\" or \"public_key.pem\"";
 
-    pub fn arg(order: usize) -> Arg<'static, 'static> {
+    pub fn arg(order: usize) -> Arg<'static> {
         sealed_public_key::arg(order, ARG_NAME, ARG_HELP, IS_REQUIRED).short(ARG_SHORT)
     }
 
@@ -289,7 +292,7 @@ pub(super) mod session_account {
         argument. The file should be one of the two public key files generated via the `keygen`
         subcommand; \"public_key_hex\" or \"public_key.pem\"";
 
-    pub fn arg(display_order: usize) -> Arg<'static, 'static> {
+    pub fn arg(display_order: usize) -> Arg<'static> {
         sealed_public_key::arg(display_order, ARG_NAME, ARG_HELP, IS_REQUIRED)
     }
 

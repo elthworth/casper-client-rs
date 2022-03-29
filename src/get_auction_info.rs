@@ -1,7 +1,7 @@
 use std::str;
 
 use async_trait::async_trait;
-use clap::{App, ArgMatches, SubCommand};
+use clap::{ArgMatches, Command};
 
 use casper_client::Error;
 use casper_node::rpcs::state::GetAuctionInfo;
@@ -17,13 +17,13 @@ enum DisplayOrder {
 }
 
 #[async_trait]
-impl<'a, 'b> ClientCommand<'a, 'b> for GetAuctionInfo {
+impl ClientCommand for GetAuctionInfo {
     const NAME: &'static str = "get-auction-info";
     const ABOUT: &'static str =
         "Returns the bids and validators as of either a specific block (by height or hash), or the most recently added block";
 
-    fn build(display_order: usize) -> App<'a, 'b> {
-        SubCommand::with_name(Self::NAME)
+    fn build(display_order: usize) -> Command<'static> {
+        Command::new(Self::NAME)
             .about(Self::ABOUT)
             .display_order(display_order)
             .arg(common::verbose::arg(DisplayOrder::Verbose as usize))
@@ -36,7 +36,7 @@ impl<'a, 'b> ClientCommand<'a, 'b> for GetAuctionInfo {
             ))
     }
 
-    async fn run(matches: &ArgMatches<'a>) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);

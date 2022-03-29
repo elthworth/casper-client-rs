@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 use once_cell::sync::Lazy;
 
 use casper_client::{
@@ -36,8 +36,8 @@ mod output_dir {
         "Path to output directory where key files will be created. If the path doesn't exist, it \
         will be created. If not set, the current working directory will be used";
 
-    pub(super) fn arg() -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(super) fn arg() -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .required(false)
             .value_name(ARG_VALUE_NAME)
             .help(ARG_HELP)
@@ -54,12 +54,12 @@ mod algorithm {
     use super::*;
 
     const ARG_NAME: &str = "algorithm";
-    const ARG_SHORT: &str = "a";
+    const ARG_SHORT: char = 'a';
     const ARG_VALUE_NAME: &str = common::ARG_STRING;
     const ARG_HELP: &str = "The type of keys to generate";
 
-    pub fn arg() -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub fn arg() -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
             .required(false)
@@ -71,7 +71,7 @@ mod algorithm {
             .display_order(DisplayOrder::Algorithm as usize)
     }
 
-    pub fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub fn get(matches: &ArgMatches) -> &str {
         matches
             .value_of(ARG_NAME)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
@@ -81,12 +81,12 @@ mod algorithm {
 pub struct Keygen {}
 
 #[async_trait]
-impl<'a, 'b> ClientCommand<'a, 'b> for Keygen {
+impl ClientCommand for Keygen {
     const NAME: &'static str = "keygen";
     const ABOUT: &'static str = "Generates account key files in the given directory";
 
-    fn build(display_order: usize) -> App<'a, 'b> {
-        SubCommand::with_name(Self::NAME)
+    fn build(display_order: usize) -> Command<'static> {
+        Command::new(Self::NAME)
             .about(Self::ABOUT)
             .long_about(MORE_ABOUT.as_str())
             .display_order(display_order)
@@ -95,7 +95,7 @@ impl<'a, 'b> ClientCommand<'a, 'b> for Keygen {
             .arg(algorithm::arg())
     }
 
-    async fn run(matches: &ArgMatches<'a>) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
         let output_dir = output_dir::get(matches);
         let algorithm = algorithm::get(matches);
         let force = common::force::get(matches);

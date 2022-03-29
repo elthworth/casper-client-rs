@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap::{App, ArgMatches, SubCommand};
+use clap::{ArgMatches, Command};
 
 use casper_client::Error;
 
@@ -9,19 +9,20 @@ use crate::{command::ClientCommand, common, Success};
 pub struct SignDeploy;
 
 #[async_trait]
-impl<'a, 'b> ClientCommand<'a, 'b> for SignDeploy {
+impl ClientCommand for SignDeploy {
     const NAME: &'static str = "sign-deploy";
     const ABOUT: &'static str =
         "Reads a previously-saved deploy from a file, cryptographically signs it, and outputs it \
         to a file or stdout";
 
-    fn build(display_order: usize) -> App<'a, 'b> {
-        SubCommand::with_name(Self::NAME)
+    fn build(display_order: usize) -> Command<'static> {
+        Command::new(Self::NAME)
             .about(Self::ABOUT)
             .display_order(display_order)
-            .arg(common::secret_key::arg(
-                creation_common::DisplayOrder::SecretKey as usize,
-            ))
+            .arg(
+                common::secret_key::arg(creation_common::DisplayOrder::SecretKey as usize)
+                    .required(true),
+            )
             .arg(creation_common::input::arg())
             .arg(creation_common::output::arg())
             .arg(common::force::arg(
@@ -30,7 +31,7 @@ impl<'a, 'b> ClientCommand<'a, 'b> for SignDeploy {
             ))
     }
 
-    async fn run(matches: &ArgMatches<'a>) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
         let input_path = creation_common::input::get(matches);
         let secret_key = common::secret_key::get(matches);
         let maybe_output_path = creation_common::output::get(matches).unwrap_or_default();

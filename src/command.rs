@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap::{App, ArgMatches};
+use clap::{ArgMatches, Command};
 use jsonrpc_lite::JsonRpc;
 
 use casper_client::Error;
@@ -19,12 +19,12 @@ impl From<JsonRpc> for Success {
 }
 
 #[async_trait]
-pub trait ClientCommand<'a, 'b> {
+pub trait ClientCommand {
     const NAME: &'static str;
     const ABOUT: &'static str;
-    /// Constructs the clap `SubCommand` and returns the clap `App`.
-    fn build(display_order: usize) -> App<'a, 'b>;
+    /// Constructs the clap subcommand.
+    fn build(display_order: usize) -> Command<'static>;
 
     /// Parses the arg matches and runs the subcommand.
-    async fn run(matches: &ArgMatches<'a>) -> Result<Success, Error>;
+    async fn run(matches: &ArgMatches) -> Result<Success, Error>;
 }

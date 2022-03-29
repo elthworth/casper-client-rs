@@ -1,7 +1,7 @@
 use std::{fs, str};
 
 use async_trait::async_trait;
-use clap::{App, Arg, ArgGroup, ArgMatches, SubCommand};
+use clap::{Arg, ArgGroup, ArgMatches, Command};
 
 use casper_client::{Error, GlobalStateStrParams};
 use casper_node::rpcs::state::QueryGlobalState;
@@ -25,12 +25,12 @@ mod state_root_hash {
     use super::*;
 
     pub(super) const ARG_NAME: &str = "state-root-hash";
-    const ARG_SHORT: &str = "s";
+    const ARG_SHORT: char = 's';
     const ARG_VALUE_NAME: &str = ARG_HEX_STRING;
     const ARG_HELP: &str = "Hex-encoded hash of the state root";
 
-    pub(super) fn arg() -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(super) fn arg() -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
             .required(false)
@@ -39,7 +39,7 @@ mod state_root_hash {
             .display_order(DisplayOrder::StateRootHash as usize)
     }
 
-    pub fn get<'a>(matches: &'a ArgMatches) -> Option<&'a str> {
+    pub fn get(matches: &ArgMatches) -> Option<&str> {
         matches.value_of(ARG_NAME)
     }
 }
@@ -48,12 +48,12 @@ mod block_hash {
     use super::*;
 
     pub(super) const ARG_NAME: &str = "block-hash";
-    const ARG_SHORT: &str = "b";
+    const ARG_SHORT: char = 'b';
     const ARG_VALUE_NAME: &str = ARG_HEX_STRING;
     const ARG_HELP: &str = "Hex-encoded hash of the block";
 
-    pub(super) fn arg() -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(super) fn arg() -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
             .required(false)
@@ -62,7 +62,7 @@ mod block_hash {
             .display_order(DisplayOrder::BlockHash as usize)
     }
 
-    pub fn get<'a>(matches: &'a ArgMatches) -> Option<&'a str> {
+    pub fn get(matches: &ArgMatches) -> Option<&str> {
         matches.value_of(ARG_NAME)
     }
 }
@@ -75,7 +75,7 @@ mod key {
     use super::*;
 
     const ARG_NAME: &str = "key";
-    const ARG_SHORT: &str = "k";
+    const ARG_SHORT: char = 'k';
     const ARG_VALUE_NAME: &str = "FORMATTED STRING or PATH";
     const ARG_HELP: &str =
         "The base key for the query. This must be a properly formatted public key, account hash, \
@@ -91,8 +91,8 @@ mod key {
         enter the path to the file as the --key argument. The file should be one of the two public \
         key files generated via the `keygen` subcommand; \"public_key_hex\" or \"public_key.pem\"";
 
-    pub(crate) fn arg(order: usize) -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(crate) fn arg(order: usize) -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
             .required(true)
@@ -133,12 +133,12 @@ mod path {
     use super::*;
 
     const ARG_NAME: &str = "query-path";
-    const ARG_SHORT: &str = "q";
+    const ARG_SHORT: char = 'q';
     const ARG_VALUE_NAME: &str = "PATH/FROM/KEY";
     const ARG_HELP: &str = "The path from the key of the query";
 
-    pub(crate) fn arg(order: usize) -> Arg<'static, 'static> {
-        Arg::with_name(ARG_NAME)
+    pub(crate) fn arg(order: usize) -> Arg<'static> {
+        Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
             .required(false)
@@ -147,12 +147,12 @@ mod path {
             .display_order(order)
     }
 
-    pub(crate) fn get<'a>(matches: &'a ArgMatches) -> &'a str {
+    pub(crate) fn get(matches: &ArgMatches) -> &str {
         matches.value_of(ARG_NAME).unwrap_or_default()
     }
 }
 
-fn global_state_str_params<'a>(matches: &'a ArgMatches) -> GlobalStateStrParams<'a> {
+fn global_state_str_params(matches: &ArgMatches) -> GlobalStateStrParams<'_> {
     if let Some(state_root_hash) = state_root_hash::get(matches) {
         return GlobalStateStrParams {
             is_block_hash: false,
@@ -169,13 +169,13 @@ fn global_state_str_params<'a>(matches: &'a ArgMatches) -> GlobalStateStrParams<
 }
 
 #[async_trait]
-impl<'a, 'b> ClientCommand<'a, 'b> for QueryGlobalState {
+impl ClientCommand for QueryGlobalState {
     const NAME: &'static str = "query-global-state";
     const ABOUT: &'static str =
         "Retrieves a stored value from the network using either the state root hash or block hash";
 
-    fn build(display_order: usize) -> App<'a, 'b> {
-        SubCommand::with_name(Self::NAME)
+    fn build(display_order: usize) -> Command<'static> {
+        Command::new(Self::NAME)
             .about(Self::ABOUT)
             .display_order(display_order)
             .arg(common::verbose::arg(DisplayOrder::Verbose as usize))
@@ -188,14 +188,14 @@ impl<'a, 'b> ClientCommand<'a, 'b> for QueryGlobalState {
             .arg(block_hash::arg())
             .arg(state_root_hash::arg())
             .group(
-                ArgGroup::with_name("state-identifier")
+                ArgGroup::new("state-identifier")
                     .arg(state_root_hash::ARG_NAME)
                     .arg(block_hash::ARG_NAME)
                     .required(true),
             )
     }
 
-    async fn run(matches: &ArgMatches<'a>) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);

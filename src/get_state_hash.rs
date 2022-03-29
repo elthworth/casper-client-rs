@@ -1,7 +1,7 @@
 use std::str;
 
 use async_trait::async_trait;
-use clap::{App, ArgMatches, SubCommand};
+use clap::{ArgMatches, Command};
 
 use casper_client::Error;
 use casper_node::rpcs::chain::GetStateRootHash;
@@ -17,12 +17,12 @@ enum DisplayOrder {
 }
 
 #[async_trait]
-impl<'a, 'b> ClientCommand<'a, 'b> for GetStateRootHash {
+impl ClientCommand for GetStateRootHash {
     const NAME: &'static str = "get-state-root-hash";
     const ABOUT: &'static str = "Retrieves a state root hash at a given block";
 
-    fn build(display_order: usize) -> App<'a, 'b> {
-        SubCommand::with_name(Self::NAME)
+    fn build(display_order: usize) -> Command<'static> {
+        Command::new(Self::NAME)
             .about(Self::ABOUT)
             .display_order(display_order)
             .arg(common::verbose::arg(DisplayOrder::Verbose as usize))
@@ -35,7 +35,7 @@ impl<'a, 'b> ClientCommand<'a, 'b> for GetStateRootHash {
             ))
     }
 
-    async fn run(matches: &ArgMatches<'a>) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);

@@ -89,7 +89,7 @@ pub struct Transfer {}
 #[async_trait]
 impl ClientCommand for Transfer {
     const NAME: &'static str = "transfer";
-    const ABOUT: &'static str = "Transfers funds between purses";
+    const ABOUT: &'static str = "Transfer funds between purses";
 
     fn build(display_order: usize) -> Command<'static> {
         let subcommand = Command::new(Self::NAME)

@@ -19,7 +19,7 @@ pub struct AccountAddress {}
 #[async_trait]
 impl ClientCommand for AccountAddress {
     const NAME: &'static str = "account-address";
-    const ABOUT: &'static str = "Generates an account hash from a given public key";
+    const ABOUT: &'static str = "Generate an account hash from a given public key";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

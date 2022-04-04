@@ -20,7 +20,7 @@ enum DisplayOrder {
 #[async_trait]
 impl ClientCommand for GetStateRootHash {
     const NAME: &'static str = "get-state-root-hash";
-    const ABOUT: &'static str = "Retrieves a state root hash at a given block";
+    const ABOUT: &'static str = "Retrieve a state root hash at a given block";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

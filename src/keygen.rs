@@ -83,7 +83,7 @@ pub struct Keygen {}
 #[async_trait]
 impl ClientCommand for Keygen {
     const NAME: &'static str = "keygen";
-    const ABOUT: &'static str = "Generates account key files in the given directory";
+    const ABOUT: &'static str = "Generate account key files in the given directory";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

@@ -12,7 +12,7 @@ pub struct MakeTransfer;
 impl ClientCommand for MakeTransfer {
     const NAME: &'static str = "make-transfer";
     const ABOUT: &'static str =
-        "Creates a transfer deploy and outputs it to a file or stdout. As a file, the deploy can \
+        "Create a transfer deploy and output it to a file or stdout. As a file, the deploy can \
         subsequently be signed by other parties using the 'sign-deploy' subcommand and then sent \
         to the network for execution using the 'send-deploy' subcommand";
 

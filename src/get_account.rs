@@ -24,7 +24,7 @@ enum DisplayOrder {
 #[async_trait]
 impl ClientCommand for GetAccount {
     const NAME: &'static str = "get-account";
-    const ABOUT: &'static str = "Retrieves account information from the network";
+    const ABOUT: &'static str = "Retrieve account information from the network";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

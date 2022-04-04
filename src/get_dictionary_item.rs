@@ -200,7 +200,7 @@ mod dictionary_address {
 #[async_trait]
 impl ClientCommand for GetDictionaryItem {
     const NAME: &'static str = "get-dictionary-item";
-    const ABOUT: &'static str = "Query for values managed in a dictionary";
+    const ABOUT: &'static str = "Retrieve a stored value from a dictionary";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

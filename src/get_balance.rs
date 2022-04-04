@@ -49,7 +49,7 @@ mod purse_uref {
 #[async_trait]
 impl ClientCommand for GetBalance {
     const NAME: &'static str = "get-balance";
-    const ABOUT: &'static str = "Retrieves a purse's balance from the network";
+    const ABOUT: &'static str = "Retrieve a purse's balance from the network";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

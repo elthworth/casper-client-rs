@@ -19,7 +19,7 @@ enum DisplayOrder {
 #[async_trait]
 impl ClientCommand for GetValidatorChanges {
     const NAME: &'static str = "get-validator-changes";
-    const ABOUT: &'static str = "Retrieves status changes of active validators";
+    const ABOUT: &'static str = "Retrieve status changes of active validators";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

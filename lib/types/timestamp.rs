@@ -16,7 +16,10 @@ pub struct Timestamp(u64);
 impl Timestamp {
     /// Returns the timestamp of the current moment.
     pub fn now() -> Self {
-        let millis = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_millis() as u64;
+        let millis = SystemTime::UNIX_EPOCH
+            .elapsed()
+            .unwrap_or_default()
+            .as_millis() as u64;
         Timestamp(millis)
     }
 }

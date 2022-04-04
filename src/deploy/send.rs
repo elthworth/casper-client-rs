@@ -13,7 +13,7 @@ pub struct SendDeploy;
 impl ClientCommand for SendDeploy {
     const NAME: &'static str = "send-deploy";
     const ABOUT: &'static str =
-        "Reads a previously-saved deploy from a file and sends it to the network for execution";
+        "Read a previously-saved deploy from a file and send it to the network for execution";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

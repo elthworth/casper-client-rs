@@ -43,7 +43,7 @@ mod deploy_hash {
 #[async_trait]
 impl ClientCommand for GetDeploy {
     const NAME: &'static str = "get-deploy";
-    const ABOUT: &'static str = "Retrieves a deploy from the network";
+    const ABOUT: &'static str = "Retrieve a deploy from the network";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

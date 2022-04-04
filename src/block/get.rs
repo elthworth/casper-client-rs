@@ -20,7 +20,7 @@ enum DisplayOrder {
 #[async_trait]
 impl ClientCommand for GetBlock {
     const NAME: &'static str = "get-block";
-    const ABOUT: &'static str = "Retrieves a block from the network";
+    const ABOUT: &'static str = "Retrieve a block from the network";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

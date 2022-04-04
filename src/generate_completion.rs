@@ -81,7 +81,7 @@ pub struct GenerateCompletion {}
 #[async_trait]
 impl ClientCommand for GenerateCompletion {
     const NAME: &'static str = "generate-completion";
-    const ABOUT: &'static str = "Generates a shell completion script";
+    const ABOUT: &'static str = "Generate a shell completion script";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

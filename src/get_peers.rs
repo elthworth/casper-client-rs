@@ -20,7 +20,7 @@ enum DisplayOrder {
 impl ClientCommand for GetPeers {
     const NAME: &'static str = "get-peers";
     const ABOUT: &'static str =
-        "Retrieves network identity and address of each of the specified node's peers";
+        "Retrieve network identity and address of each of the specified node's peers";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

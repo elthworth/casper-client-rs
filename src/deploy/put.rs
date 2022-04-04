@@ -11,7 +11,7 @@ pub struct PutDeploy;
 #[async_trait]
 impl ClientCommand for PutDeploy {
     const NAME: &'static str = "put-deploy";
-    const ABOUT: &'static str = "Creates a deploy and sends it to the network for execution";
+    const ABOUT: &'static str = "Create a deploy and send it to the network for execution";
 
     fn build(display_order: usize) -> Command<'static> {
         let subcommand = Command::new(Self::NAME)

@@ -176,7 +176,7 @@ fn global_state_str_params(matches: &ArgMatches) -> GlobalStateStrParams<'_> {
 impl ClientCommand for QueryGlobalState {
     const NAME: &'static str = "query-global-state";
     const ABOUT: &'static str =
-        "Retrieves a stored value from the network using either the state root hash or block hash";
+        "Retrieve a stored value from the network using either the state root hash or block hash";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

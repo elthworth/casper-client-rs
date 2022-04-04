@@ -12,9 +12,9 @@ pub struct MakeDeploy;
 impl ClientCommand for MakeDeploy {
     const NAME: &'static str = "make-deploy";
     const ABOUT: &'static str =
-        "Creates a deploy and outputs it to a file or stdout. As a file, the deploy can \
-        subsequently be signed by other parties using the 'sign-deploy' subcommand and then sent \
-        to the network for execution using the 'send-deploy' subcommand";
+        "Create a deploy and output it to a file or stdout. As a file, the deploy can subsequently \
+        be signed by other parties using the 'sign-deploy' subcommand and then sent to the network \
+        for execution using the 'send-deploy' subcommand";
 
     fn build(display_order: usize) -> Command<'static> {
         let subcommand = Command::new(Self::NAME)

@@ -12,8 +12,8 @@ pub struct SignDeploy;
 impl ClientCommand for SignDeploy {
     const NAME: &'static str = "sign-deploy";
     const ABOUT: &'static str =
-        "Reads a previously-saved deploy from a file, cryptographically signs it, and outputs it \
-        to a file or stdout";
+        "Read a previously-saved deploy from a file, cryptographically sign it, and output it to a \
+        file or stdout";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

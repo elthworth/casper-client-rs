@@ -49,7 +49,7 @@ pub struct ListDeploys;
 #[async_trait]
 impl ClientCommand for ListDeploys {
     const NAME: &'static str = "list-deploys";
-    const ABOUT: &'static str = "Retrieves the list of all deploy hashes in a given block";
+    const ABOUT: &'static str = "Retrieve the list of all deploy hashes in a given block";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

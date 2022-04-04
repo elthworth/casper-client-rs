@@ -19,7 +19,7 @@ enum DisplayOrder {
 #[async_trait]
 impl ClientCommand for GetNodeStatus {
     const NAME: &'static str = "get-node-status";
-    const ABOUT: &'static str = "Retrieves status of the specified node";
+    const ABOUT: &'static str = "Retrieve status of the specified node";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

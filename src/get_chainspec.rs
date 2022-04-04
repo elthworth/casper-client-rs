@@ -20,7 +20,7 @@ enum DisplayOrder {
 impl ClientCommand for GetChainspec {
     const NAME: &'static str = "get-chainspec";
     const ABOUT: &'static str =
-        "Retrieves the chainspec of the network (to print the full TOML, run with '-vv')";
+        "Retrieve the chainspec of the network (to print the full TOML, run with '-vv')";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

@@ -39,10 +39,10 @@ pub enum StoredValue {
     Unbonding(Vec<UnbondingPurse>),
 }
 
+// TODO - improve variants relying upon `Debug` impls.
 impl Display for StoredValue {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         match self {
-            // TODO - improve this variant.
             StoredValue::CLValue(cl_value) => {
                 write!(formatter, "stored value {{ {:?} }}", cl_value)
             }
@@ -62,27 +62,21 @@ impl Display for StoredValue {
             StoredValue::ContractPackage(contract_package) => {
                 write!(formatter, "stored value {{ {} }}", contract_package)
             }
-            // TODO - improve this variant.
             StoredValue::Transfer(transfer) => {
                 write!(formatter, "stored value {{ {:?} }}", transfer)
             }
-            // TODO - improve this variant.
             StoredValue::DeployInfo(deploy_info) => {
                 write!(formatter, "stored value {{ {:?} }}", deploy_info)
             }
-            // TODO - improve this variant.
             StoredValue::EraInfo(era_info) => {
                 write!(formatter, "stored value {{ {:?} }}", era_info)
             }
-            // TODO - improve this variant.
             StoredValue::Bid(bid) => {
                 write!(formatter, "stored value {{ {:?} }}", bid)
             }
-            // TODO - improve this variant.
             StoredValue::Withdraw(withdrawal_info) => {
                 write!(formatter, "stored value {{ {:?} }}", withdrawal_info)
             }
-            // TODO - improve this variant.
             StoredValue::Unbonding(unbonding_info) => {
                 write!(formatter, "stored value {{ {:?} }}", unbonding_info)
             }

@@ -192,7 +192,7 @@ pub(super) mod timestamp {
     const ARG_HELP: &str =
         "RFC3339-like formatted timestamp, e.g. '2018-02-16 00:31:37'. If not provided, the \
         current time will be used. Note that timestamp is UTC, not local. See \
-        https://list_rpcs/humantime/latest/humantime/fn.parse_rfc3339_weak.html for more \
+        https://docs.rs/humantime/latest/humantime/fn.parse_rfc3339_weak.html for more \
         information.";
 
     pub(in crate::deploy) fn arg() -> Arg<'static> {
@@ -220,7 +220,7 @@ pub(super) mod ttl {
         "Time that the deploy will remain valid for. A deploy can only be included in a block \
         between `timestamp` and `timestamp + ttl`. Input examples: '1hr 12min', '30min 50sec', \
         '1day'. For all options, see \
-        https://list_rpcs/humantime/latest/humantime/fn.parse_duration.html";
+        https://docs.rs/humantime/latest/humantime/fn.parse_duration.html";
 
     pub(in crate::deploy) fn arg() -> Arg<'static> {
         Arg::new(ARG_NAME)

@@ -22,7 +22,7 @@ enum DisplayOrder {
 #[async_trait]
 impl ClientCommand for GetEraInfo {
     const NAME: &'static str = "get-era-info";
-    const ABOUT: &'static str = "Retrieves era information from the network";
+    const ABOUT: &'static str = "Retrieve era information from the network";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use clap::{ArgMatches, Command};
 
-use casper_client::{DeployStrParams, Error};
+use casper_client::cli::{CliError, DeployStrParams};
 
 use super::{creation_common, transfer};
 use crate::{command::ClientCommand, common, Success};
@@ -12,7 +12,7 @@ pub struct MakeTransfer;
 impl ClientCommand for MakeTransfer {
     const NAME: &'static str = "make-transfer";
     const ABOUT: &'static str =
-        "Creates a transfer deploy and outputs it to a file or stdout. As a file, the deploy can \
+        "Create a transfer deploy and output it to a file or stdout. As a file, the deploy can \
         subsequently be signed by other parties using the 'sign-deploy' subcommand and then sent \
         to the network for execution using the 'send-deploy' subcommand";
 
@@ -32,7 +32,7 @@ impl ClientCommand for MakeTransfer {
         creation_common::apply_common_creation_options(subcommand, false)
     }
 
-    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
         creation_common::show_arg_examples_and_exit_if_required(matches);
 
         let amount = transfer::amount::get(matches);
@@ -42,8 +42,6 @@ impl ClientCommand for MakeTransfer {
         let secret_key = common::secret_key::get(matches);
         let timestamp = creation_common::timestamp::get(matches);
         let ttl = creation_common::ttl::get(matches);
-        let gas_price = creation_common::gas_price::get(matches);
-        let dependencies = creation_common::dependencies::get(matches);
         let chain_name = creation_common::chain_name::get(matches);
 
         let payment_str_params = creation_common::payment_str_params(matches);
@@ -52,7 +50,7 @@ impl ClientCommand for MakeTransfer {
         let session_account = common::session_account::get(matches)?;
         let force = common::force::get(matches);
 
-        casper_client::make_transfer(
+        casper_client::cli::make_transfer(
             maybe_output_path,
             amount,
             target_account,
@@ -61,8 +59,6 @@ impl ClientCommand for MakeTransfer {
                 secret_key,
                 timestamp,
                 ttl,
-                gas_price,
-                dependencies,
                 chain_name,
                 session_account: &session_account,
             },

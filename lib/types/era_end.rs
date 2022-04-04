@@ -42,18 +42,18 @@ pub struct EraReport {
 
 impl EraReport {
     /// Returns the collection of validators which have equivocated in this era.
-    pub fn equivocators(&self) -> &Vec<PublicKey> {
-        &self.equivocators
+    pub fn equivocators(&self) -> impl Iterator<Item = &PublicKey> {
+        self.equivocators.iter()
     }
 
     /// Returns the collection of rewards due.
-    pub fn rewards(&self) -> &Vec<Reward> {
-        &self.rewards
+    pub fn rewards(&self) -> impl Iterator<Item = &Reward> {
+        self.rewards.iter()
     }
 
     /// Returns the collection of validators which were marked inactive in this era.
-    pub fn inactive_validators(&self) -> &Vec<PublicKey> {
-        &self.inactive_validators
+    pub fn inactive_validators(&self) -> impl Iterator<Item = &PublicKey> {
+        self.inactive_validators.iter()
     }
 }
 
@@ -125,8 +125,8 @@ impl EraEnd {
     }
 
     /// Returns the validator weights for the subsequent era.
-    pub fn next_era_validator_weights(&self) -> &Vec<ValidatorWeight> {
-        &self.next_era_validator_weights
+    pub fn next_era_validator_weights(&self) -> impl Iterator<Item = &ValidatorWeight> {
+        self.next_era_validator_weights.iter()
     }
 }
 

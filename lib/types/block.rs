@@ -14,7 +14,7 @@ use casper_types::{
 
 #[cfg(doc)]
 use crate::types::{validate_block_hashes_v1, validate_block_hashes_v2};
-use crate::types::{EraEnd, Proof, Timestamp};
+use crate::types::{DeployHash, EraEnd, Proof, Timestamp};
 
 /// A cryptographic hash uniquely identifying a [`Block`].
 ///
@@ -63,7 +63,7 @@ impl ToBytes for BlockHash {
     }
 }
 
-/// The header portion of a block.
+/// The header portion of a [`Block`].
 #[derive(Clone, PartialOrd, Ord, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct BlockHeader {
@@ -141,8 +141,8 @@ impl Display for BlockHeader {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         write!(
             formatter,
-            "block header parent hash {}, post-state hash {}, body hash {}, \
-            random bit {}, accumulated seed {}, timestamp {}",
+            "block header {{ parent hash {}, post-state hash {}, body hash {}, \
+            random bit {}, accumulated seed {}, timestamp {} }}",
             self.parent_hash.0,
             self.state_root_hash,
             self.body_hash,
@@ -196,10 +196,8 @@ impl ToBytes for BlockHeader {
 #[serde(deny_unknown_fields)]
 pub struct BlockBody {
     proposer: PublicKey,
-    // TODO: make this a `DeployHash`.
-    deploy_hashes: Vec<Digest>,
-    // TODO: make this a `DeployHash`.
-    transfer_hashes: Vec<Digest>,
+    deploy_hashes: Vec<DeployHash>,
+    transfer_hashes: Vec<DeployHash>,
 }
 
 impl BlockBody {
@@ -209,13 +207,13 @@ impl BlockBody {
     }
 
     /// Returns the hashes of all non-transfer deploys included in this block.
-    pub fn deploy_hashes(&self) -> &Vec<Digest> {
-        &self.deploy_hashes
+    pub fn deploy_hashes(&self) -> impl Iterator<Item = &DeployHash> {
+        self.deploy_hashes.iter()
     }
 
     /// Returns the hashes of all transfers included in this block.
-    pub fn transfer_hashes(&self) -> &Vec<Digest> {
-        &self.transfer_hashes
+    pub fn transfer_hashes(&self) -> impl Iterator<Item = &DeployHash> {
+        self.transfer_hashes.iter()
     }
 }
 
@@ -277,8 +275,8 @@ impl Block {
     }
 
     /// Returns the proofs; the public keys and signatures of the validators which signed the block.
-    pub fn proofs(&self) -> &Vec<Proof> {
-        &self.proofs
+    pub fn proofs(&self) -> impl Iterator<Item = &Proof> {
+        self.proofs.iter()
     }
 }
 
@@ -286,8 +284,8 @@ impl Display for Block {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
-            "executed block {}, parent hash {}, post-state hash {}, body hash {}, \
-             random bit {}, timestamp {}, {}, height {}, protocol version: {}",
+            "block {{ {}, parent hash {}, post-state hash {}, body hash {}, \
+             random bit {}, timestamp {}, {}, height {}, protocol version: {} }}",
             self.hash,
             self.header.parent_hash,
             self.header.state_root_hash,

@@ -3,10 +3,11 @@ use std::str;
 use async_trait::async_trait;
 use clap::{ArgMatches, Command};
 
-use casper_client::Error;
-use casper_node::rpcs::info::GetValidatorChanges;
+use casper_client::cli::CliError;
 
 use crate::{command::ClientCommand, common, Success};
+
+pub struct GetValidatorChanges;
 
 /// This enum defines the order in which the args are shown for this subcommand's help message.
 enum DisplayOrder {
@@ -18,7 +19,7 @@ enum DisplayOrder {
 #[async_trait]
 impl ClientCommand for GetValidatorChanges {
     const NAME: &'static str = "get-validator-changes";
-    const ABOUT: &'static str = "Retrieves status changes of active validators";
+    const ABOUT: &'static str = "Retrieve status changes of active validators";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)
@@ -31,12 +32,12 @@ impl ClientCommand for GetValidatorChanges {
             .arg(common::rpc_id::arg(DisplayOrder::RpcId as usize))
     }
 
-    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);
 
-        casper_client::get_validator_changes(maybe_rpc_id, node_address, verbosity_level)
+        casper_client::cli::get_validator_changes(maybe_rpc_id, node_address, verbosity_level)
             .await
             .map(Success::from)
     }

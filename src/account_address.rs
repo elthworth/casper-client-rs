@@ -3,7 +3,7 @@ use std::str;
 
 use clap::{ArgMatches, Command};
 
-use casper_client::Error;
+use casper_client::cli::CliError;
 use casper_types::{AsymmetricType, PublicKey};
 
 use crate::{command::ClientCommand, common, Success};
@@ -14,12 +14,12 @@ enum DisplayOrder {
     PublicKey,
 }
 
-pub struct GenerateAccountHash {}
+pub struct AccountAddress {}
 
 #[async_trait]
-impl ClientCommand for GenerateAccountHash {
+impl ClientCommand for AccountAddress {
     const NAME: &'static str = "account-address";
-    const ABOUT: &'static str = "Generates an account hash from a given public key";
+    const ABOUT: &'static str = "Generate an account hash from a given public key";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)
@@ -29,11 +29,14 @@ impl ClientCommand for GenerateAccountHash {
             .arg(common::public_key::arg(DisplayOrder::PublicKey as usize))
     }
 
-    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
         let hex_public_key = common::public_key::get(matches)?;
         let public_key = PublicKey::from_hex(&hex_public_key).map_err(|error| {
             eprintln!("Can't parse {} as a public key: {}", hex_public_key, error);
-            Error::FailedToParseKey
+            CliError::FailedToParsePublicKey {
+                context: "account-address",
+                error,
+            }
         })?;
         let account_hash = public_key.to_account_hash();
         Ok(Success::Output(account_hash.to_formatted_string()))

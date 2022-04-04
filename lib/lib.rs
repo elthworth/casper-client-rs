@@ -1,4 +1,27 @@
-//! # Casper node client library
+//! # Casper client library
+//!
+//! The crate provides functions for interacting with a Casper network.
+//!
+//! Most of the functions involve sending a JSON-RPC request to a specified node on the chosen
+//! network, and providing the RPC response.
+//!
+//! # Common Parameters
+//!
+//! Many of the functions have similar parameters.  Descriptions for these common ones follow:
+//!
+//! * <code>rpc_id: <a href="enum.JsonRpcId.html">JsonRpcId</a></code> - The JSON-RPC identifier,
+//!   applied to the request and returned in the response.
+//! * <code>node_address: &<a href="https://doc.rust-lang.org/std/primitive.str.html">str</a></code> -
+//!   The hostname or IP and port of the server, e.g. `http://127.0.0.1:7777`.
+//! * <code>verbosity: <a href="enum.Verbosity.html">Verbosity</a></code> - When `Low`, nothing is
+//!   printed to stdout.  For `Medium`, the request and response are printed to `stdout` with long
+//!   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
+//!   count of the field.  `High` verbosity is the same as `Medium` except without abbreviation of
+//!   long fields.
+//! * <code>maybe_block_identifier: <a href="https://doc.rust-lang.org/core/option/enum.Option.html">Option</a><<a href="rpcs/common/enum.BlockIdentifier.html">BlockIdentifier</a>></code> -
+//!   The identifier of the [`Block`] to use, either block height or block hash.  If `None`, the
+//!   latest `Block` known on the server will be used.
+
 #![doc(
     html_root_url = "https://docs.rs/casper-client/1.4.2",
     html_favicon_url = "https://raw.githubusercontent.com/CasperLabs/casper-node/master/images/CasperLabs_Logo_Favicon_RGB_50px.png",
@@ -12,1507 +35,445 @@
     unused_qualifications
 )]
 
-mod cl_type;
-mod deploy;
+pub mod cli;
+pub(crate) mod crypto;
 mod error;
+mod json_rpc;
 pub mod keygen;
-mod parsing;
-mod rpc;
+mod output_kind;
+pub mod rpcs;
+mod transfer_target;
 pub mod types;
 mod validation;
+mod verbosity;
 
-use std::{convert::TryInto, fs, io::Cursor};
+use std::{
+    fs,
+    io::{Cursor, Read, Write},
+    path::Path,
+};
 
-use jsonrpc_lite::JsonRpc;
 use serde::Serialize;
 
-use casper_execution_engine::core::engine_state::ExecutableDeployItem;
 use casper_hashing::Digest;
-use casper_node::{
-    rpcs::state::{DictionaryIdentifier, GlobalStateIdentifier},
-    types::{BlockHash, Deploy},
-};
-use casper_types::Key;
+#[cfg(doc)]
+use casper_types::Transfer;
+use casper_types::{Key, PublicKey, SecretKey, URef};
 
-pub use cl_type::help;
-pub use deploy::ListDeploysResult;
-use deploy::{DeployExt, DeployParams, OutputKind};
+pub use crypto::{AsymmetricKeyExt, CryptoError};
 pub use error::Error;
-use error::Result;
-pub use rpc::map_hashing_error;
-use rpc::RpcCall;
+use json_rpc::JsonRpcCall;
+pub use json_rpc::{JsonRpcId, SuccessResponse};
+pub use output_kind::OutputKind;
+use rpcs::{
+    common::BlockIdentifier,
+    results::{
+        GetAccountResult, GetAuctionInfoResult, GetBalanceResult, GetBlockResult,
+        GetBlockTransfersResult, GetChainspecResult, GetDeployResult, GetDictionaryItemResult,
+        GetEraInfoResult, GetNodeStatusResult, GetPeersResult, GetStateRootHashResult,
+        GetValidatorChangesResult, ListRpcsResult, PutDeployResult, QueryGlobalStateResult,
+    },
+    v1_4_5::{
+        get_account::{GetAccountParams, GET_ACCOUNT_METHOD},
+        get_auction_info::{GetAuctionInfoParams, GET_AUCTION_INFO_METHOD},
+        get_balance::{GetBalanceParams, GET_BALANCE_METHOD},
+        get_block::{GetBlockParams, GET_BLOCK_METHOD},
+        get_block_transfers::{GetBlockTransfersParams, GET_BLOCK_TRANSFERS_METHOD},
+        get_chainspec::GET_CHAINSPEC_METHOD,
+        get_deploy::{GetDeployParams, GET_DEPLOY_METHOD},
+        get_dictionary_item::{GetDictionaryItemParams, GET_DICTIONARY_ITEM_METHOD},
+        get_era_info::{GetEraInfoParams, GET_ERA_INFO_METHOD},
+        get_node_status::GET_NODE_STATUS_METHOD,
+        get_peers::GET_PEERS_METHOD,
+        get_state_root_hash::{GetStateRootHashParams, GET_STATE_ROOT_HASH_METHOD},
+        get_validator_changes::GET_VALIDATOR_CHANGES_METHOD,
+        list_rpcs::LIST_RPCS_METHOD,
+        put_deploy::{PutDeployParams, PUT_DEPLOY_METHOD},
+        query_global_state::{QueryGlobalStateParams, QUERY_GLOBAL_STATE_METHOD},
+    },
+    DictionaryItemIdentifier, GlobalStateIdentifier,
+};
+pub use transfer_target::TransferTarget;
+#[cfg(doc)]
+use types::{Account, Block, StoredValue};
+use types::{Deploy, DeployHash, MAX_SERIALIZED_SIZE_OF_DEPLOY};
 pub use validation::ValidateResponseError;
+pub use verbosity::Verbosity;
 
-/// Creates a `Deploy` and sends it to the network for execution.
+/// Puts a [`Deploy`] to the network for execution.
 ///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `deploy_params` contains deploy-related options for this `Deploy`. See
-///   [`DeployStrParams`](struct.DeployStrParams.html) for more details.
-/// * `session_params` contains session-related options for this `Deploy`. See
-///   [`SessionStrParams`](struct.SessionStrParams.html) for more details.
-/// * `payment_params` contains payment-related options for this `Deploy`. See
-///   [`PaymentStrParams`](struct.PaymentStrParams.html) for more details.
+/// Sends a JSON-RPC `account_put_deploy` request to the specified node.
+///
+/// For details of the parameters, see [the module docs](crate#common-parameters).
 pub async fn put_deploy(
-    maybe_rpc_id: &str,
+    rpc_id: JsonRpcId,
     node_address: &str,
-    verbosity_level: u64,
-    deploy_params: DeployStrParams<'_>,
-    session_params: SessionStrParams<'_>,
-    payment_params: PaymentStrParams<'_>,
-) -> Result<JsonRpc> {
-    let deploy = Deploy::with_payment_and_session(
-        deploy_params.try_into()?,
-        payment_params.try_into()?,
-        session_params.try_into()?,
-    )?;
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .put_deploy(deploy)
+    verbosity: Verbosity,
+    deploy: Deploy,
+) -> Result<SuccessResponse<PutDeployResult>, Error> {
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request(PUT_DEPLOY_METHOD, Some(PutDeployParams::new(deploy)))
         .await
 }
 
-/// Creates a `Deploy` and outputs it to a file or stdout.
+/// Outputs a [`Deploy`] to a file or stdout.
 ///
-/// As a file, the `Deploy` can subsequently be signed by other parties using
-/// [`sign_deploy_file()`](fn.sign_deploy_file.html) and then sent to the network for execution
-/// using [`send_deploy_file()`](fn.send_deploy_file.html).
+/// As a file, the `Deploy` can subsequently be signed by other parties using [`sign_deploy_file`]
+/// and then read and sent to the network for execution using [`read_deploy_file`] and
+/// [`put_deploy`] respectively.
 ///
-/// * `maybe_output_path` specifies the output file, or if empty, will print it to `stdout`.
-/// * `deploy_params` contains deploy-related options for this `Deploy`. See
-///   [`DeployStrParams`](struct.DeployStrParams.html) for more details.
-/// * `session_params` contains session-related options for this `Deploy`. See
-///   [`SessionStrParams`](struct.SessionStrParams.html) for more details.
-/// * `payment_params` contains payment-related options for this `Deploy`. See
-///   [`PaymentStrParams`](struct.PaymentStrParams.html) for more details.
-/// * If `force` is true, and a file exists at `maybe_output_path`, it will be overwritten. If
-///   `force` is false and a file exists at `maybe_output_path`,
-///   [`Error::FileAlreadyExists`](enum.Error.html#variant.FileAlreadyExists) is returned and a file
-///   will not be written.
-pub fn make_deploy(
-    maybe_output_path: &str,
-    deploy_params: DeployStrParams<'_>,
-    session_params: SessionStrParams<'_>,
-    payment_params: PaymentStrParams<'_>,
-    force: bool,
-) -> Result<()> {
-    let output = if maybe_output_path.is_empty() {
-        OutputKind::Stdout
-    } else {
-        OutputKind::file(maybe_output_path, force)
-    };
-
-    Deploy::with_payment_and_session(
-        deploy_params.try_into()?,
-        payment_params.try_into()?,
-        session_params.try_into()?,
-    )?
-    .write_deploy(output.get()?)?;
-
+/// `output` specifies the output file and corresponding overwrite behaviour, or if
+/// `OutputKind::Stdout`, causes the `Deploy` to be printed `stdout`.
+pub fn output_deploy(output: OutputKind, deploy: &Deploy) -> Result<(), Error> {
+    write_deploy(deploy, output.get()?)?;
     output.commit()
 }
 
-/// Reads a previously-saved `Deploy` from a file, cryptographically signs it, and outputs it to a
-/// file or stdout.
-///
-/// * `input_path` specifies the path to the previously-saved `Deploy` file.
-/// * `secret_key` specifies the path to the secret key with which to sign the `Deploy`.
-/// * `maybe_output_path` specifies the output file, or if empty, will print it to `stdout`.
-/// * If `force` is true, and a file exists at `maybe_output_path`, it will be overwritten. If
-///   `force` is false and a file exists at `maybe_output_path`,
-///   [`Error::FileAlreadyExists`](enum.Error.html#variant.FileAlreadyExists) is returned and a file
-///   will not be written.
-pub fn sign_deploy_file(
-    input_path: &str,
-    secret_key: &str,
-    maybe_output_path: &str,
-    force: bool,
-) -> Result<()> {
-    let secret_key = parsing::secret_key(secret_key)?;
-
-    let input = fs::read(input_path).map_err(|error| Error::IoError {
-        context: format!("unable to read deploy file at '{}'", input_path),
+/// Reads a previously-saved [`Deploy`] from a file.
+pub fn read_deploy_file<P: AsRef<Path>>(deploy_path: P) -> Result<Deploy, Error> {
+    let input = fs::read(deploy_path.as_ref()).map_err(|error| Error::IoError {
+        context: format!(
+            "unable to read deploy file at '{}'",
+            deploy_path.as_ref().display()
+        ),
         error,
     })?;
+    read_deploy(Cursor::new(input))
+}
 
-    let output = if maybe_output_path.is_empty() {
-        OutputKind::Stdout
-    } else {
-        OutputKind::file(maybe_output_path, force)
-    };
+/// Reads a previously-saved [`Deploy`] from a file, cryptographically signs it, and outputs it
+/// to a file or stdout.
+///
+/// `output` specifies the output file and corresponding overwrite behaviour, or if
+/// `OutputKind::Stdout`, causes the `Deploy` to be printed `stdout`.
+///
+/// The same path can be specified for input and output, and if the operation fails, the original
+/// input file will be left unmodified.
+pub fn sign_deploy_file<P: AsRef<Path>>(
+    input_path: P,
+    secret_key: &SecretKey,
+    output: OutputKind,
+) -> Result<(), Error> {
+    let mut deploy = read_deploy_file(input_path)?;
 
-    Deploy::sign_and_write_deploy(Cursor::new(input), secret_key, output.get()?)?;
+    deploy.sign(secret_key);
+    deploy.is_valid_size(MAX_SERIALIZED_SIZE_OF_DEPLOY)?;
 
+    write_deploy(&deploy, output.get()?)?;
     output.commit()
 }
 
-/// Reads a previously-saved `Deploy` from a file and sends it to the network for execution.
+/// Retrieves a [`Deploy`] and its metadata (i.e. execution results) from the network.
 ///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `input_path` specifies the path to the previously-saved `Deploy` file.
-pub async fn send_deploy_file(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-    input_path: &str,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .send_deploy_file(input_path)
-        .await
-}
-
-/// Transfers funds between purses.
+/// Sends a JSON-RPC `info_get_deploy` request to the specified node.
 ///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `amount` is a string to be parsed as a `U512` specifying the amount to be transferred.
-/// * `target_account` is the `AccountHash`, `URef` or `PublicKey` of the account to which the funds
-///   will be transferred, formatted as a hex-encoded string. The account's main purse will receive
-///   the funds.
-/// * `transfer_id` is a string to be parsed as a `u64` representing a user-defined identifier which
-///   will be permanently associated with the transfer.
-/// * `deploy_params` contains deploy-related options for this `Deploy`. See
-///   [`DeployStrParams`](struct.DeployStrParams.html) for more details.
-/// * `payment_params` contains payment-related options for this `Deploy`. See
-///   [`PaymentStrParams`](struct.PaymentStrParams.html) for more details.
-#[allow(clippy::too_many_arguments)]
-pub async fn transfer(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-    amount: &str,
-    target_account: &str,
-    transfer_id: &str,
-    deploy_params: DeployStrParams<'_>,
-    payment_params: PaymentStrParams<'_>,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .transfer(
-            amount,
-            None,
-            target_account,
-            transfer_id,
-            deploy_params.try_into()?,
-            payment_params.try_into()?,
-        )
-        .await
-}
-
-/// Creates a transfer `Deploy` and outputs it to a file or stdout.
+/// `finalized_approvals` defines whether to return the `Deploy` with its approvals as finalized by
+/// consensus of the validators on the network, or as originally received by the specified node.
 ///
-/// As a file, the transfer `Deploy` can subsequently be signed by other parties using
-/// [`sign_deploy_file()`](fn.sign_deploy_file.html) and then sent to the network for execution
-/// using [`send_deploy_file()`](fn.send_deploy_file.html).
-///
-/// * `maybe_output_path` specifies the output file, or if empty, will print it to `stdout`.
-/// * `amount` is a string to be parsed as a `U512` specifying the amount to be transferred.
-/// * `target_account` is the `AccountHash`, `URef` or `PublicKey` of the account to which the funds
-///   will be transferred, formatted as a hex-encoded string. The account's main purse will receive
-///   the funds.
-/// * `transfer_id` is a string to be parsed as a `u64` representing a user-defined identifier which
-///   will be permanently associated with the transfer.
-/// * `deploy_params` contains deploy-related options for this `Deploy`. See
-///   [`DeployStrParams`](struct.DeployStrParams.html) for more details.
-/// * `payment_params` contains payment-related options for this `Deploy`. See
-///   [`PaymentStrParams`](struct.PaymentStrParams.html) for more details.
-/// * If `force` is true, and a file exists at `maybe_output_path`, it will be overwritten. If
-///   `force` is false and a file exists at `maybe_output_path`,
-///   [`Error::FileAlreadyExists`](enum.Error.html#variant.FileAlreadyExists) is returned and a file
-///   will not be written.
-pub fn make_transfer(
-    maybe_output_path: &str,
-    amount: &str,
-    target_account: &str,
-    transfer_id: &str,
-    deploy_params: DeployStrParams<'_>,
-    payment_params: PaymentStrParams<'_>,
-    force: bool,
-) -> Result<()> {
-    let output = if maybe_output_path.is_empty() {
-        OutputKind::Stdout
-    } else {
-        OutputKind::file(maybe_output_path, force)
-    };
-
-    Deploy::new_transfer(
-        amount,
-        None,
-        target_account,
-        transfer_id,
-        deploy_params.try_into()?,
-        payment_params.try_into()?,
-    )?
-    .write_deploy(output.get()?)?;
-
-    output.commit()
-}
-
-/// Retrieves a `Deploy` from the network.
-///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `deploy_hash` must be a hex-encoded, 32-byte hash digest.
+/// For details of the other parameters, see [the module docs](crate#common-parameters).
 pub async fn get_deploy(
-    maybe_rpc_id: &str,
+    rpc_id: JsonRpcId,
     node_address: &str,
-    verbosity_level: u64,
-    deploy_hash: &str,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .get_deploy(deploy_hash)
-        .await
-}
-
-/// Retrieves a `Block` from the network.
-///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `maybe_block_id` must be a hex-encoded, 32-byte hash digest or a `u64` representing the
-///   `Block` height or empty. If empty, the latest `Block` will be retrieved.
-pub async fn get_block(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-    maybe_block_id: &str,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .get_block(maybe_block_id)
-        .await
-}
-
-/// Retrieves all `Transfer` items for a `Block` from the network.
-///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `maybe_block_id` must be a hex-encoded, 32-byte hash digest or a `u64` representing the
-///   `Block` height or empty. If empty, the latest `Block` transfers will be retrieved.
-pub async fn get_block_transfers(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-    maybe_block_id: &str,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .get_block_transfers(maybe_block_id)
-        .await
-}
-
-/// Retrieves a state root hash at a given `Block`.
-///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `maybe_block_id` must be a hex-encoded, 32-byte hash digest or a `u64` representing the
-///   `Block` height or empty. If empty, the latest `Block` will be used.
-pub async fn get_state_root_hash(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-    maybe_block_id: &str,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .get_state_root_hash(maybe_block_id)
-        .await
-}
-
-/// Retrieves a stored value from the network.
-///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `state_root_hash` must be a hex-encoded, 32-byte hash digest.
-/// * `key` must be a formatted [`PublicKey`](https://docs.rs/casper-node/latest/casper-node/crypto/asymmetric_key/enum.PublicKey.html)
-///   or [`Key`](https://docs.rs/casper-types/latest/casper-types/enum.PublicKey.html). This will
-///   take one of the following forms:
-/// ```text
-/// 01c9e33693951aaac23c49bee44ad6f863eedcd38c084a3a8f11237716a3df9c2c             # PublicKey
-/// account-hash-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20  # Key::Account
-/// hash-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20          # Key::Hash
-/// uref-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20-007      # Key::URef
-/// transfer-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20      # Key::Transfer
-/// deploy-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20        # Key::DeployInfo
-/// era-1                                                                          # Key::EraInfo
-/// bid-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20           # Key::Bid
-/// withdraw-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20      # Key::Withdraw
-/// dictionary-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20    # Key::Dictionary
-/// The Key::SystemContractRegistry variant is unique and can only take the following value:
-/// system-contract-registry-0000000000000000000000000000000000000000000000000000000000000000
-/// ```
-/// * `path` is comprised of components starting from the `key`, separated by `/`s.
-#[deprecated(note = "Users should use `casper_client::query_global_state` instead.")]
-pub async fn get_item(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-    state_root_hash: &str,
-    key: &str,
-    path: &str,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .get_item(state_root_hash, key, path)
-        .await
-}
-
-/// Retrieves a purse's balance from the network.
-///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `state_root_hash` must be a hex-encoded, 32-byte hash digest.
-/// * `purse` is a URef, formatted as e.g.
-/// ```text
-/// uref-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20-007
-/// ```
-pub async fn get_balance(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-    state_root_hash: &str,
-    purse: &str,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .get_balance(state_root_hash, purse)
-        .await
-}
-
-/// Retrieves era information from the network.
-///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `maybe_block_id` must be a hex-encoded, 32-byte hash digest or a `u64` representing the
-///   `Block` height or empty. If empty, era information from the latest block will be returned if
-///   available.
-pub async fn get_era_info_by_switch_block(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-    maybe_block_id: &str,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .get_era_info_by_switch_block(maybe_block_id)
-        .await
-}
-
-/// Retrieves the bids and validators as of the most recently added `Block`.
-///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `maybe_block_id` must be a hex-encoded, 32-byte hash digest or a `u64` representing the
-///   `Block` height or empty. If empty, era information from the latest block will be returned if
-///   available.
-pub async fn get_auction_info(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-    maybe_block_id: &str,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .get_auction_info(maybe_block_id)
-        .await
-}
-
-/// Retrieves an Account from the network.
-///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `public_key` the public key associated with the `Account`
-/// * `maybe_block_id` must be a hex-encoded, 32-byte hash digest or a `u64` representing the
-///   `Block` height or empty. If empty, the latest `Block` will be retrieved.
-pub async fn get_account_info(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-    public_key: &str,
-    maybe_block_id: &str,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .get_account_info(public_key, maybe_block_id)
-        .await
-}
-
-/// Retrieves information from global state using either a Block hash or a state root hash.
-///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `global_state_str_params` contains global state identifier related options for this query. See
-///   [`GlobalStateStrParams`](struct.GlobalStateStrParams.html) for more details.
-/// * `key` must be a formatted [`PublicKey`](https://docs.rs/casper-node/latest/casper-node/crypto/asymmetric_key/enum.PublicKey.html)
-///   or [`Key`](https://docs.rs/casper-types/latest/casper-types/enum.Key.html). This will take one
-///   of the following forms:
-/// ```text
-/// 01c9e33693951aaac23c49bee44ad6f863eedcd38c084a3a8f11237716a3df9c2c             # PublicKey
-/// account-hash-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20  # Key::Account
-/// hash-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20          # Key::Hash
-/// uref-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20-007      # Key::URef
-/// transfer-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20      # Key::Transfer
-/// deploy-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20        # Key::DeployInfo
-/// era-1                                                                          # Key::EraInfo
-/// bid-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20           # Key::Bid
-/// withdraw-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20      # Key::Withdraw
-/// dictionary-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20    # Key::Dictionary
-/// The Key::SystemContractRegistry variant is unique and can only take the following value:
-/// system-contract-registry-0000000000000000000000000000000000000000000000000000000000000000
-/// ```
-/// * `path` is comprised of components starting from the `key`, separated by `/`s.
-pub async fn query_global_state(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-    global_state_str_params: GlobalStateStrParams<'_>,
-    key: &str,
-    path: &str,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .query_global_state(global_state_str_params, key, path)
-        .await
-}
-
-/// Retrieves information and examples for all currently supported RPCs.
-///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-pub async fn list_rpcs(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .list_rpcs()
-        .await
-}
-
-/// Retrieves a stored value from a dictionary.
-///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-/// * `state_root_hash` must be a hex-encoded, 32-byte hash digest.
-/// * `dictionary_str_params` contains options to query a dictionary item.
-pub async fn get_dictionary_item(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-    state_root_hash: &str,
-    dictionary_str_params: DictionaryItemStrParams<'_>,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .get_dictionary_item(state_root_hash, dictionary_str_params)
-        .await
-}
-
-/// Retrieves status changes of active validators.
-///
-/// * `maybe_rpc_id` is the JSON-RPC identifier, applied to the request and returned in the
-///   response. If it can be parsed as an `i64` it will be used as a JSON integer. If empty, a
-///   random `i64` will be assigned. Otherwise the provided string will be used verbatim.
-/// * `node_address` is the hostname or IP and port of the node on which the HTTP service is
-///   running, e.g. `"http://127.0.0.1:7777"`.
-/// * When `verbosity_level` is `1`, the JSON-RPC request will be printed to `stdout` with long
-///   string fields (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char
-///   count of the field.  When `verbosity_level` is greater than `1`, the request will be printed
-///   to `stdout` with no abbreviation of long fields.  When `verbosity_level` is `0`, the request
-///   will not be printed to `stdout`.
-pub async fn get_validator_changes(
-    maybe_rpc_id: &str,
-    node_address: &str,
-    verbosity_level: u64,
-) -> Result<JsonRpc> {
-    RpcCall::new(maybe_rpc_id, node_address, verbosity_level)
-        .get_validator_changes()
-        .await
-}
-
-/// Container for `Deploy` construction options.
-#[derive(Default, Debug)]
-pub struct DeployStrParams<'a> {
-    /// Path to secret key file.
-    pub secret_key: &'a str,
-    /// RFC3339-like formatted timestamp. e.g. `2018-02-16T00:31:37Z`.
-    ///
-    /// If `timestamp` is empty, the current time will be used. Note that timestamp is UTC, not
-    /// local.
-    ///
-    /// See
-    /// [the `humantime` docs](https://docs.rs/humantime/latest/humantime/fn.parse_rfc3339_weak.html)
-    /// for more information.
-    pub timestamp: &'a str,
-    /// Time that the `Deploy` will remain valid for.
-    ///
-    /// A `Deploy` can only be included in a `Block` between `timestamp` and `timestamp + ttl`.
-    /// Input examples: '1hr 12min', '30min 50sec', '1day'.
-    ///
-    /// See
-    /// [the `humantime` docs](https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)
-    /// for more information.
-    pub ttl: &'a str,
-    /// Conversion rate between the cost of Wasm opcodes and the motes sent by the payment code.
-    pub gas_price: &'a str,
-    /// Hex-encoded `Deploy` hashes of deploys which must be executed before this one.
-    pub dependencies: Vec<&'a str>,
-    /// Name of the chain, to avoid the `Deploy` from being accidentally or maliciously included in
-    /// a different chain.
-    pub chain_name: &'a str,
-    /// The hex-encoded public key of the account context under which the session code will be
-    /// executed.
-    pub session_account: &'a str,
-}
-
-impl<'a> TryInto<DeployParams> for DeployStrParams<'a> {
-    type Error = Error;
-
-    fn try_into(self) -> Result<DeployParams> {
-        let DeployStrParams {
-            secret_key,
-            timestamp,
-            ttl,
-            gas_price,
-            dependencies,
-            chain_name,
-            session_account,
-        } = self;
-        parsing::parse_deploy_params(
-            secret_key,
-            timestamp,
-            ttl,
-            gas_price,
-            &dependencies,
-            chain_name,
-            session_account,
+    verbosity: Verbosity,
+    deploy_hash: DeployHash,
+    finalized_approvals: bool,
+) -> Result<SuccessResponse<GetDeployResult>, Error> {
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request(
+            GET_DEPLOY_METHOD,
+            Some(GetDeployParams::new(deploy_hash, finalized_approvals)),
         )
-    }
+        .await
 }
 
-/// Container for payment-related arguments used while constructing a `Deploy`.
+/// Retrieves a [`Block`] from the network.
 ///
-/// ## `payment_args_simple`
+/// Sends a JSON-RPC `chain_get_block` request to the specified node.
 ///
-/// For methods taking `payment_args_simple`, this parameter is the payment contract arguments, in
-/// the form `<NAME:TYPE='VALUE'>` or `<NAME:TYPE=null>`.
-///
-/// It can only be used with the following simple `CLType`s: bool, i32, i64, u8, u32, u64, u128,
-/// u256, u512, unit, string, key, account_hash, uref, public_key and `Option` of each of these.
-///
-/// Example inputs are:
-///
-/// ```text
-/// name_01:bool='false'
-/// name_02:i32='-1'
-/// name_03:i64='-2'
-/// name_04:u8='3'
-/// name_05:u32='4'
-/// name_06:u64='5'
-/// name_07:u128='6'
-/// name_08:u256='7'
-/// name_09:u512='8'
-/// name_10:unit=''
-/// name_11:string='a value'
-/// key_account_name:key='account-hash-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20'
-/// key_hash_name:key='hash-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20'
-/// key_uref_name:key='uref-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20-000'
-/// account_hash_name:account_hash='account-hash-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20'
-/// uref_name:uref='uref-0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20-007'
-/// public_key_name:public_key='0119bf44096984cdfe8541bac167dc3b96c85086aa30b6b6cb0c5c38ad703166e1'
-/// ```
-///
-/// For optional values of any these types, prefix the type with "opt_" and use the term "null"
-/// without quotes to specify a None value:
-///
-/// ```text
-/// name_01:opt_bool='true'       # Some(true)
-/// name_02:opt_bool='false'      # Some(false)
-/// name_03:opt_bool=null         # None
-/// name_04:opt_i32='-1'          # Some(-1)
-/// name_05:opt_i32=null          # None
-/// name_06:opt_unit=''           # Some(())
-/// name_07:opt_unit=null         # None
-/// name_08:opt_string='a value'  # Some("a value".to_string())
-/// name_09:opt_string='null'     # Some("null".to_string())
-/// name_10:opt_string=null       # None
-/// ```
-///
-/// To get a list of supported types, call
-/// [`supported_cl_type_list()`](help/fn.supported_cl_type_list.html). To get this list of examples
-/// for supported types, call
-/// [`supported_cl_type_examples()`](help/fn.supported_cl_type_examples.html).
-///
-/// ## `payment_args_complex`
-///
-/// For methods taking `payment_args_complex`, this parameter is the payment contract arguments, in
-/// the form of a `ToBytes`-encoded file.
-///
-/// ---
-///
-/// **Note** while multiple payment args can be specified for a single payment code instance, only
-/// one of `payment_args_simple` and `payment_args_complex` may be used.
-#[derive(Default)]
-pub struct PaymentStrParams<'a> {
-    payment_amount: &'a str,
-    payment_hash: &'a str,
-    payment_name: &'a str,
-    payment_package_hash: &'a str,
-    payment_package_name: &'a str,
-    payment_path: &'a str,
-    payment_args_simple: Vec<&'a str>,
-    payment_args_complex: &'a str,
-    payment_version: &'a str,
-    payment_entry_point: &'a str,
+/// For details of the parameters, see [the module docs](crate#common-parameters).
+pub async fn get_block(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+    maybe_block_identifier: Option<BlockIdentifier>,
+) -> Result<SuccessResponse<GetBlockResult>, Error> {
+    let params = maybe_block_identifier.map(GetBlockParams::new);
+    let success_response = JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request(GET_BLOCK_METHOD, params)
+        .await?;
+    validation::validate_get_block_result(maybe_block_identifier, &success_response.result)?;
+    Ok(success_response)
 }
 
-impl<'a> TryInto<ExecutableDeployItem> for PaymentStrParams<'a> {
-    type Error = Error;
-
-    fn try_into(self) -> Result<ExecutableDeployItem> {
-        parsing::parse_payment_info(self)
-    }
-}
-
-impl<'a> PaymentStrParams<'a> {
-    /// Constructs a `PaymentStrParams` using a payment smart contract file.
-    ///
-    /// * `payment_path` is the path to the compiled Wasm payment code.
-    /// * See the struct docs for a description of [`payment_args_simple`](#payment_args_simple) and
-    ///   [`payment_args_complex`](#payment_args_complex).
-    pub fn with_path(
-        payment_path: &'a str,
-        payment_args_simple: Vec<&'a str>,
-        payment_args_complex: &'a str,
-    ) -> Self {
-        Self {
-            payment_path,
-            payment_args_simple,
-            payment_args_complex,
-            ..Default::default()
-        }
-    }
-
-    /// Constructs a `PaymentStrParams` using a payment amount.
-    ///
-    /// `payment_amount` uses the standard-payment system contract rather than custom payment Wasm.
-    /// The value is the 'amount' arg of the standard-payment contract.
-    pub fn with_amount(payment_amount: &'a str) -> Self {
-        Self {
-            payment_amount,
-            ..Default::default()
-        }
-    }
-
-    /// Constructs a `PaymentStrParams` using a stored contract's name.
-    ///
-    /// * `payment_name` is the name of the stored contract (associated with the executing account)
-    ///   to be called as the payment.
-    /// * `payment_entry_point` is the name of the method that will be used when calling the payment
-    ///   contract.
-    /// * See the struct docs for a description of [`payment_args_simple`](#payment_args_simple) and
-    ///   [`payment_args_complex`](#payment_args_complex).
-    pub fn with_name(
-        payment_name: &'a str,
-        payment_entry_point: &'a str,
-        payment_args_simple: Vec<&'a str>,
-        payment_args_complex: &'a str,
-    ) -> Self {
-        Self {
-            payment_name,
-            payment_args_simple,
-            payment_args_complex,
-            payment_entry_point,
-            ..Default::default()
-        }
-    }
-
-    /// Constructs a `PaymentStrParams` using a stored contract's hex-encoded hash.
-    ///
-    /// * `payment_hash` is the hex-encoded hash of the stored contract to be called as the payment.
-    /// * `payment_entry_point` is the name of the method that will be used when calling the payment
-    ///   contract.
-    /// * See the struct docs for a description of [`payment_args_simple`](#payment_args_simple) and
-    ///   [`payment_args_complex`](#payment_args_complex).
-    pub fn with_hash(
-        payment_hash: &'a str,
-        payment_entry_point: &'a str,
-        payment_args_simple: Vec<&'a str>,
-        payment_args_complex: &'a str,
-    ) -> Self {
-        Self {
-            payment_hash,
-            payment_args_simple,
-            payment_args_complex,
-            payment_entry_point,
-            ..Default::default()
-        }
-    }
-
-    /// Constructs a `PaymentStrParams` using a stored contract's package name.
-    ///
-    /// * `payment_package_name` is the name of the stored package to be called as the payment.
-    /// * `payment_version` is the version of the called payment contract. The latest will be used
-    ///   if `payment_version` is empty.
-    /// * `payment_entry_point` is the name of the method that will be used when calling the payment
-    ///   contract.
-    /// * See the struct docs for a description of [`payment_args_simple`](#payment_args_simple) and
-    ///   [`payment_args_complex`](#payment_args_complex).
-    pub fn with_package_name(
-        payment_package_name: &'a str,
-        payment_version: &'a str,
-        payment_entry_point: &'a str,
-        payment_args_simple: Vec<&'a str>,
-        payment_args_complex: &'a str,
-    ) -> Self {
-        Self {
-            payment_package_name,
-            payment_args_simple,
-            payment_args_complex,
-            payment_version,
-            payment_entry_point,
-            ..Default::default()
-        }
-    }
-
-    /// Constructs a `PaymentStrParams` using a stored contract's package hash.
-    ///
-    /// * `payment_package_hash` is the hex-encoded hash of the stored package to be called as the
-    ///   payment.
-    /// * `payment_version` is the version of the called payment contract. The latest will be used
-    ///   if `payment_version` is empty.
-    /// * `payment_entry_point` is the name of the method that will be used when calling the payment
-    ///   contract.
-    /// * See the struct docs for a description of [`payment_args_simple`](#payment_args_simple) and
-    ///   [`payment_args_complex`](#payment_args_complex).
-    pub fn with_package_hash(
-        payment_package_hash: &'a str,
-        payment_version: &'a str,
-        payment_entry_point: &'a str,
-        payment_args_simple: Vec<&'a str>,
-        payment_args_complex: &'a str,
-    ) -> Self {
-        Self {
-            payment_package_hash,
-            payment_args_simple,
-            payment_args_complex,
-            payment_version,
-            payment_entry_point,
-            ..Default::default()
-        }
-    }
-}
-
-impl<'a> TryInto<ExecutableDeployItem> for SessionStrParams<'a> {
-    type Error = Error;
-
-    fn try_into(self) -> Result<ExecutableDeployItem> {
-        parsing::parse_session_info(self)
-    }
-}
-
-/// Container for session-related arguments used while constructing a `Deploy`.
+/// Retrieves all [`Transfer`] items for a given [`Block`].
 ///
-/// ## `session_args_simple`
+/// Sends a JSON-RPC `chain_get_block_transfers` request to the specified node.
 ///
-/// For methods taking `session_args_simple`, this parameter is the session contract arguments, in
-/// the form `<NAME:TYPE='VALUE'>` or `<NAME:TYPE=null>`.
+/// For details of the parameters, see [the module docs](crate#common-parameters).
+pub async fn get_block_transfers(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+    maybe_block_identifier: Option<BlockIdentifier>,
+) -> Result<SuccessResponse<GetBlockTransfersResult>, Error> {
+    let params = maybe_block_identifier.map(GetBlockTransfersParams::new);
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request(GET_BLOCK_TRANSFERS_METHOD, params)
+        .await
+}
+
+/// Retrieves a state root hash at a given [`Block`].
 ///
-/// There are further details in
-/// [the docs for the equivalent
-/// `payment_args_simple`](struct.PaymentStrParams.html#payment_args_simple).
+/// Sends a JSON-RPC `chain_get_state_root_hash` request to the specified node.
 ///
-/// ## `session_args_complex`
+/// For details of the parameters, see [the module docs](crate#common-parameters).
+pub async fn get_state_root_hash(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+    maybe_block_identifier: Option<BlockIdentifier>,
+) -> Result<SuccessResponse<GetStateRootHashResult>, Error> {
+    let params = maybe_block_identifier.map(GetStateRootHashParams::new);
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request(GET_STATE_ROOT_HASH_METHOD, params)
+        .await
+}
+
+/// Retrieves era information from the network at a given [`Block`].
 ///
-/// For methods taking `session_args_complex`, this parameter is the session contract arguments, in
-/// the form of a `ToBytes`-encoded file.
+/// Sends a JSON-RPC `chain_get_era_info_by_switch_block` request to the specified node.
 ///
-/// ---
+/// For details of the parameters, see [the module docs](crate#common-parameters).  Note that if the
+/// specified block is not a switch block then the response will have no era info.
+pub async fn get_era_info(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+    maybe_block_identifier: Option<BlockIdentifier>,
+) -> Result<SuccessResponse<GetEraInfoResult>, Error> {
+    let params = maybe_block_identifier.map(GetEraInfoParams::new);
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request(GET_ERA_INFO_METHOD, params)
+        .await
+}
+
+/// Retrieves a [`StoredValue`] from global state at a given [`Block`] or state root hash.
 ///
-/// **Note** while multiple payment args can be specified for a single session code instance, only
-/// one of `session_args_simple` and `session_args_complex` may be used.
-#[derive(Default)]
-pub struct SessionStrParams<'a> {
-    session_hash: &'a str,
-    session_name: &'a str,
-    session_package_hash: &'a str,
-    session_package_name: &'a str,
-    session_path: &'a str,
-    session_args_simple: Vec<&'a str>,
-    session_args_complex: &'a str,
-    session_version: &'a str,
-    session_entry_point: &'a str,
-    is_session_transfer: bool,
+/// Sends a JSON-RPC `query_global_state` request to the specified node.
+///
+/// `key` specifies the key under which the value is stored in global state.
+///
+/// `path` defines the further path (if any) from `key` to navigate to during the query.  This is
+/// only applicable in the case where the value under `key` is an account or contract.  In this
+/// case, the first `path` element represents a name in the account/contract's named keys.  If that
+/// second `Key` also points to an account or contract, then a second path element can be added to
+/// continue the query into that account/contract's named keys.  This can continue up to the
+/// server's configured maximum query depth (5 by default).
+///
+/// For details of the other parameters, see [the module docs](crate#common-parameters).
+pub async fn query_global_state(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+    global_state_identifier: GlobalStateIdentifier,
+    key: Key,
+    path: Vec<String>,
+) -> Result<SuccessResponse<QueryGlobalStateResult>, Error> {
+    let params = QueryGlobalStateParams::new(global_state_identifier, key, path);
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request(QUERY_GLOBAL_STATE_METHOD, Some(params))
+        .await
 }
 
-impl<'a> SessionStrParams<'a> {
-    /// Constructs a `SessionStrParams` using a session smart contract file.
-    ///
-    /// * `session_path` is the path to the compiled Wasm session code.
-    /// * See the struct docs for a description of [`session_args_simple`](#session_args_simple) and
-    ///   [`session_args_complex`](#session_args_complex).
-    pub fn with_path(
-        session_path: &'a str,
-        session_args_simple: Vec<&'a str>,
-        session_args_complex: &'a str,
-    ) -> Self {
-        Self {
-            session_path,
-            session_args_simple,
-            session_args_complex,
-            ..Default::default()
-        }
-    }
-
-    /// Constructs a `SessionStrParams` using a stored contract's name.
-    ///
-    /// * `session_name` is the name of the stored contract (associated with the executing account)
-    ///   to be called as the session.
-    /// * `session_entry_point` is the name of the method that will be used when calling the session
-    ///   contract.
-    /// * See the struct docs for a description of [`session_args_simple`](#session_args_simple) and
-    ///   [`session_args_complex`](#session_args_complex).
-    pub fn with_name(
-        session_name: &'a str,
-        session_entry_point: &'a str,
-        session_args_simple: Vec<&'a str>,
-        session_args_complex: &'a str,
-    ) -> Self {
-        Self {
-            session_name,
-            session_args_simple,
-            session_args_complex,
-            session_entry_point,
-            ..Default::default()
-        }
-    }
-
-    /// Constructs a `SessionStrParams` using a stored contract's hex-encoded hash.
-    ///
-    /// * `session_hash` is the hex-encoded hash of the stored contract to be called as the session.
-    /// * `session_entry_point` is the name of the method that will be used when calling the session
-    ///   contract.
-    /// * See the struct docs for a description of [`session_args_simple`](#session_args_simple) and
-    ///   [`session_args_complex`](#session_args_complex).
-    pub fn with_hash(
-        session_hash: &'a str,
-        session_entry_point: &'a str,
-        session_args_simple: Vec<&'a str>,
-        session_args_complex: &'a str,
-    ) -> Self {
-        Self {
-            session_hash,
-            session_args_simple,
-            session_args_complex,
-            session_entry_point,
-            ..Default::default()
-        }
-    }
-
-    /// Constructs a `SessionStrParams` using a stored contract's package name.
-    ///
-    /// * `session_package_name` is the name of the stored package to be called as the session.
-    /// * `session_version` is the version of the called session contract. The latest will be used
-    ///   if `session_version` is empty.
-    /// * `session_entry_point` is the name of the method that will be used when calling the session
-    ///   contract.
-    /// * See the struct docs for a description of [`session_args_simple`](#session_args_simple) and
-    ///   [`session_args_complex`](#session_args_complex).
-    pub fn with_package_name(
-        session_package_name: &'a str,
-        session_version: &'a str,
-        session_entry_point: &'a str,
-        session_args_simple: Vec<&'a str>,
-        session_args_complex: &'a str,
-    ) -> Self {
-        Self {
-            session_package_name,
-            session_args_simple,
-            session_args_complex,
-            session_version,
-            session_entry_point,
-            ..Default::default()
-        }
-    }
-
-    /// Constructs a `SessionStrParams` using a stored contract's package hash.
-    ///
-    /// * `session_package_hash` is the hex-encoded hash of the stored package to be called as the
-    ///   session.
-    /// * `session_version` is the version of the called session contract. The latest will be used
-    ///   if `session_version` is empty.
-    /// * `session_entry_point` is the name of the method that will be used when calling the session
-    ///   contract.
-    /// * See the struct docs for a description of [`session_args_simple`](#session_args_simple) and
-    ///   [`session_args_complex`](#session_args_complex).
-    pub fn with_package_hash(
-        session_package_hash: &'a str,
-        session_version: &'a str,
-        session_entry_point: &'a str,
-        session_args_simple: Vec<&'a str>,
-        session_args_complex: &'a str,
-    ) -> Self {
-        Self {
-            session_package_hash,
-            session_args_simple,
-            session_args_complex,
-            session_version,
-            session_entry_point,
-            ..Default::default()
-        }
-    }
-
-    /// Constructs a `SessionStrParams` representing a `Transfer` type of `Deploy`.
-    ///
-    /// * See the struct docs for a description of [`session_args_simple`](#session_args_simple) and
-    ///   [`session_args_complex`](#session_args_complex).
-    pub fn with_transfer(session_args_simple: Vec<&'a str>, session_args_complex: &'a str) -> Self {
-        Self {
-            is_session_transfer: true,
-            session_args_simple,
-            session_args_complex,
-            ..Default::default()
-        }
-    }
+/// Retrieves a [`StoredValue`] from a dictionary at a given state root hash.
+///
+/// Sends a JSON-RPC `state_get_dictionary_item` request to the specified node.
+///
+/// For details of the parameters, see [the module docs](crate#common-parameters).
+pub async fn get_dictionary_item(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+    state_root_hash: Digest,
+    dictionary_item_identifier: DictionaryItemIdentifier,
+) -> Result<SuccessResponse<GetDictionaryItemResult>, Error> {
+    let params = GetDictionaryItemParams::new(state_root_hash, dictionary_item_identifier);
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request(GET_DICTIONARY_ITEM_METHOD, Some(params))
+        .await
 }
 
-/// Various ways of uniquely identifying a dictionary entry.
-pub enum DictionaryItemStrParams<'a> {
-    /// Lookup a dictionary item via an Account's named keys.
-    AccountNamedKey {
-        /// The account key as a formatted string whose named keys contains dictionary_name.
-        key: &'a str,
-        /// The named key under which the dictionary seed URef is stored.
-        dictionary_name: &'a str,
-        /// The dictionary item key formatted as a string.
-        dictionary_item_key: &'a str,
-    },
-    /// Lookup a dictionary item via a Contract's named keys.
-    ContractNamedKey {
-        /// The contract key as a formatted string whose named keys contains dictionary_name.
-        key: &'a str,
-        /// The named key under which the dictionary seed URef is stored.
-        dictionary_name: &'a str,
-        /// The dictionary item key formatted as a string.
-        dictionary_item_key: &'a str,
-    },
-    /// Lookup a dictionary item via its seed URef.
-    URef {
-        /// The dictionary's seed URef.
-        seed_uref: &'a str,
-        /// The dictionary item key formatted as a string.
-        dictionary_item_key: &'a str,
-    },
-    /// Lookup a dictionary item via its unique key.
-    Dictionary(&'a str),
+/// Retrieves a purse's balance at a given state root hash.
+///
+/// Sends a JSON-RPC `state_get_balance` request to the specified node.
+///
+/// For details of the parameters, see [the module docs](crate#common-parameters).
+pub async fn get_balance(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+    state_root_hash: Digest,
+    purse: URef,
+) -> Result<SuccessResponse<GetBalanceResult>, Error> {
+    let params = GetBalanceParams::new(state_root_hash, purse);
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request(GET_BALANCE_METHOD, Some(params))
+        .await
 }
 
-impl<'a> TryInto<DictionaryIdentifier> for DictionaryItemStrParams<'a> {
-    type Error = Error;
-
-    fn try_into(self) -> Result<DictionaryIdentifier> {
-        match self {
-            DictionaryItemStrParams::AccountNamedKey {
-                key,
-                dictionary_item_key,
-                dictionary_name,
-            } => {
-                let key = Key::from_formatted_str(key)
-                    .map_err(|_| Error::FailedToParseDictionaryIdentifier)?;
-                Ok(DictionaryIdentifier::AccountNamedKey {
-                    key: key.to_formatted_string(),
-                    dictionary_name: dictionary_name.to_string(),
-                    dictionary_item_key: dictionary_item_key.to_string(),
-                })
-            }
-            DictionaryItemStrParams::ContractNamedKey {
-                key,
-                dictionary_item_key,
-                dictionary_name,
-            } => {
-                let key = Key::from_formatted_str(key)
-                    .map_err(|_| Error::FailedToParseDictionaryIdentifier)?;
-                Ok(DictionaryIdentifier::ContractNamedKey {
-                    key: key.to_formatted_string(),
-                    dictionary_name: dictionary_name.to_string(),
-                    dictionary_item_key: dictionary_item_key.to_string(),
-                })
-            }
-            DictionaryItemStrParams::URef {
-                seed_uref,
-                dictionary_item_key,
-            } => {
-                let uref = Key::from_formatted_str(seed_uref)
-                    .map_err(|_| Error::FailedToParseDictionaryIdentifier)?;
-                Ok(DictionaryIdentifier::URef {
-                    seed_uref: uref.to_formatted_string(),
-                    dictionary_item_key: dictionary_item_key.to_string(),
-                })
-            }
-            DictionaryItemStrParams::Dictionary(dictionary_key) => {
-                let dictionary_key = Key::from_formatted_str(dictionary_key)
-                    .map_err(|_| Error::FailedToParseDictionaryIdentifier)?;
-                Ok(DictionaryIdentifier::Dictionary(
-                    dictionary_key.to_formatted_string(),
-                ))
-            }
-        }
-    }
+/// Retrieves an [`Account`] at a given [`Block`].
+///
+/// Sends a JSON-RPC `state_get_account_info` request to the specified node.
+///
+/// For details of the parameters, see [the module docs](crate#common-parameters).
+pub async fn get_account(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+    maybe_block_identifier: Option<BlockIdentifier>,
+    account_identifier: PublicKey,
+) -> Result<SuccessResponse<GetAccountResult>, Error> {
+    let params = GetAccountParams::new(account_identifier, maybe_block_identifier);
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request(GET_ACCOUNT_METHOD, Some(params))
+        .await
 }
 
-/// The two ways to construct a query to global state.
-#[derive(Default, Debug)]
-pub struct GlobalStateStrParams<'a> {
-    /// Identifier to mark the hash as either a Block hash or `state_root_hash`
-    /// When true, the hash provided is a Block hash.
-    pub is_block_hash: bool,
-    /// The hex-encoded hash value.
-    pub hash_value: &'a str,
+/// Retrieves the bids and validators at a given [`Block`].
+///
+/// Sends a JSON-RPC `state_get_auction_info` request to the specified node.
+///
+/// For details of the parameters, see [the module docs](crate#common-parameters).
+pub async fn get_auction_info(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+    maybe_block_identifier: Option<BlockIdentifier>,
+) -> Result<SuccessResponse<GetAuctionInfoResult>, Error> {
+    let params = maybe_block_identifier.map(GetAuctionInfoParams::new);
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request(GET_AUCTION_INFO_METHOD, params)
+        .await
 }
 
-impl<'a> TryInto<GlobalStateIdentifier> for GlobalStateStrParams<'a> {
-    type Error = Error;
-
-    fn try_into(self) -> Result<GlobalStateIdentifier> {
-        let hash = Digest::from_hex(self.hash_value)
-            .map_err(|error| map_hashing_error(error)("global_state_identifier"))?;
-
-        if self.is_block_hash {
-            Ok(GlobalStateIdentifier::BlockHash(BlockHash::new(hash)))
-        } else {
-            Ok(GlobalStateIdentifier::StateRootHash(hash))
-        }
-    }
+/// Retrieves the status changes of the active validators on the network.
+///
+/// Sends a JSON-RPC `info_get_validator_changes` request to the specified node.
+///
+/// For details of the parameters, see [the module docs](crate#common-parameters).
+pub async fn get_validator_changes(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+) -> Result<SuccessResponse<GetValidatorChangesResult>, Error> {
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request::<(), _>(GET_VALIDATOR_CHANGES_METHOD, None)
+        .await
 }
 
-/// When `verbosity_level` is `1`, the value will be printed to `stdout` with long string fields
-/// (e.g. hex-formatted raw Wasm bytes) shortened to a string indicating the char count of the
-/// field.  When `verbosity_level` is greater than `1`, the value will be printed to `stdout` with
-/// no abbreviation of long fields.  When `verbosity_level` is `0`, the value will not be printed to
-/// `stdout`.
-pub fn pretty_print_at_level<T: ?Sized + Serialize>(value: &T, verbosity_level: u64) {
-    match verbosity_level {
-        0 => (),
-        1 => {
-            println!(
-                "{}",
-                casper_types::json_pretty_print(value).expect("should encode to JSON")
-            );
-        }
-        _ => {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(value).expect("should encode to JSON")
-            );
-        }
-    }
+/// Retrieves the IDs and addresses of the specified node's peers.
+///
+/// Sends a JSON-RPC `info_get_peers` request to the specified node.
+///
+/// For details of the parameters, see [the module docs](crate#common-parameters).
+pub async fn get_peers(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+) -> Result<SuccessResponse<GetPeersResult>, Error> {
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request::<(), _>(GET_PEERS_METHOD, None)
+        .await
 }
 
-#[cfg(test)]
-mod param_tests {
-    use super::*;
+/// Retrieves the status of the specified node.
+///
+/// Sends a JSON-RPC `info_get_status` request to the specified node.
+///
+/// For details of the parameters, see [the module docs](crate#common-parameters).
+pub async fn get_node_status(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+) -> Result<SuccessResponse<GetNodeStatusResult>, Error> {
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request::<(), _>(GET_NODE_STATUS_METHOD, None)
+        .await
+}
 
-    const HASH: &str = "09dcee4b212cfd53642ab323fbef07dafafc6f945a80a00147f62910a915c4e6";
-    const NAME: &str = "name";
-    const PKG_NAME: &str = "pkg_name";
-    const PKG_HASH: &str = "09dcee4b212cfd53642ab323fbef07dafafc6f945a80a00147f62910a915c4e6";
-    const ENTRYPOINT: &str = "entrypoint";
-    const VERSION: &str = "0.1.0";
+/// Retrieves the Chainspec of the network.
+///
+/// Sends a JSON-RPC `info_get_chainspec` request to the specified node.
+///
+/// For details of the parameters, see [the module docs](crate#common-parameters).
+pub async fn get_chainspec(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+) -> Result<SuccessResponse<GetChainspecResult>, Error> {
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request::<(), _>(GET_CHAINSPEC_METHOD, None)
+        .await
+}
 
-    fn args_simple() -> Vec<&'static str> {
-        vec!["name_01:bool='false'", "name_02:u32='42'"]
+/// Retrieves the interface description (the schema including examples in OpenRPC format) of the
+/// JSON-RPC server's API.
+///
+/// Sends a JSON-RPC `rpc.discover` request to the specified node.
+///
+/// For details of the parameters, see [the module docs](crate#common-parameters).
+pub async fn list_rpcs(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+) -> Result<SuccessResponse<ListRpcsResult>, Error> {
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request::<(), _>(LIST_RPCS_METHOD, None)
+        .await
+}
+
+/// JSON-encode and pretty-print the given value to stdout at the given verbosity level.
+///
+/// When `verbosity` is `Low`, nothing is printed.  For `Medium`, the value is printed with long
+/// string fields shortened to a string indicating the character count of the field.  `High`
+/// verbosity is the same as `Medium` except without abbreviation of long fields.
+pub(crate) fn json_pretty_print<T: ?Sized + Serialize>(
+    value: &T,
+    verbosity: Verbosity,
+) -> Result<(), Error> {
+    let output = match verbosity {
+        Verbosity::Low => return Ok(()),
+        Verbosity::Medium => casper_types::json_pretty_print(value),
+        Verbosity::High => serde_json::to_string_pretty(value),
     }
+    .map_err(|error| Error::FailedToEncodeToJson {
+        context: "in json_pretty_print",
+        error,
+    })?;
+    println!("{}", output);
+    Ok(())
+}
 
-    /// Sample data creation methods for PaymentStrParams
-    mod session_params {
-        use std::collections::BTreeMap;
+fn write_deploy<W: Write>(deploy: &Deploy, mut output: W) -> Result<(), Error> {
+    let content =
+        serde_json::to_string_pretty(deploy).map_err(|error| Error::FailedToEncodeToJson {
+            context: "writing deploy",
+            error,
+        })?;
+    output
+        .write_all(content.as_bytes())
+        .map_err(|error| Error::IoError {
+            context: "unable to write deploy".to_owned(),
+            error,
+        })
+}
 
-        use casper_types::CLValue;
-
-        use super::*;
-
-        #[test]
-        pub fn with_hash() {
-            let params: Result<ExecutableDeployItem> =
-                SessionStrParams::with_hash(HASH, ENTRYPOINT, args_simple(), "").try_into();
-            match params {
-                Ok(item @ ExecutableDeployItem::StoredContractByHash { .. }) => {
-                    let actual: BTreeMap<String, CLValue> = item.args().clone().into();
-                    let mut expected = BTreeMap::new();
-                    expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
-                    expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
-                    assert_eq!(actual, expected);
-                }
-                other => panic!("incorrect type parsed {:?}", other),
-            }
-        }
-
-        #[test]
-        pub fn with_name() {
-            let params: Result<ExecutableDeployItem> =
-                SessionStrParams::with_name(NAME, ENTRYPOINT, args_simple(), "").try_into();
-            match params {
-                Ok(item @ ExecutableDeployItem::StoredContractByName { .. }) => {
-                    let actual: BTreeMap<String, CLValue> = item.args().clone().into();
-                    let mut expected = BTreeMap::new();
-                    expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
-                    expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
-                    assert_eq!(actual, expected);
-                }
-                other => panic!("incorrect type parsed {:?}", other),
-            }
-        }
-
-        #[test]
-        pub fn with_package_name() {
-            let params: Result<ExecutableDeployItem> = SessionStrParams::with_package_name(
-                PKG_NAME,
-                VERSION,
-                ENTRYPOINT,
-                args_simple(),
-                "",
-            )
-            .try_into();
-            match params {
-                Ok(item @ ExecutableDeployItem::StoredVersionedContractByName { .. }) => {
-                    let actual: BTreeMap<String, CLValue> = item.args().clone().into();
-                    let mut expected = BTreeMap::new();
-                    expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
-                    expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
-                    assert_eq!(actual, expected);
-                }
-                other => panic!("incorrect type parsed {:?}", other),
-            }
-        }
-
-        #[test]
-        pub fn with_package_hash() {
-            let params: Result<ExecutableDeployItem> = SessionStrParams::with_package_hash(
-                PKG_HASH,
-                VERSION,
-                ENTRYPOINT,
-                args_simple(),
-                "",
-            )
-            .try_into();
-            match params {
-                Ok(item @ ExecutableDeployItem::StoredVersionedContractByHash { .. }) => {
-                    let actual: BTreeMap<String, CLValue> = item.args().clone().into();
-                    let mut expected = BTreeMap::new();
-                    expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
-                    expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
-                    assert_eq!(actual, expected);
-                }
-                other => panic!("incorrect type parsed {:?}", other),
-            }
-        }
-    }
-
-    /// Sample data creation methods for PaymentStrParams
-    mod payment_params {
-        use std::collections::BTreeMap;
-
-        use casper_types::{CLValue, U512};
-
-        use super::*;
-
-        #[test]
-        pub fn with_amount() {
-            let params: Result<ExecutableDeployItem> =
-                PaymentStrParams::with_amount("100").try_into();
-            match params {
-                Ok(item @ ExecutableDeployItem::ModuleBytes { .. }) => {
-                    let amount = CLValue::from_t(U512::from(100)).unwrap();
-                    assert_eq!(item.args().get("amount"), Some(&amount));
-                }
-                other => panic!("incorrect type parsed {:?}", other),
-            }
-        }
-
-        #[test]
-        pub fn with_hash() {
-            let params: Result<ExecutableDeployItem> =
-                PaymentStrParams::with_hash(HASH, ENTRYPOINT, args_simple(), "").try_into();
-            match params {
-                Ok(item @ ExecutableDeployItem::StoredContractByHash { .. }) => {
-                    let actual: BTreeMap<String, CLValue> = item.args().clone().into();
-                    let mut expected = BTreeMap::new();
-                    expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
-                    expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
-                    assert_eq!(actual, expected);
-                }
-                other => panic!("incorrect type parsed {:?}", other),
-            }
-        }
-
-        #[test]
-        pub fn with_name() {
-            let params: Result<ExecutableDeployItem> =
-                PaymentStrParams::with_name(NAME, ENTRYPOINT, args_simple(), "").try_into();
-            match params {
-                Ok(item @ ExecutableDeployItem::StoredContractByName { .. }) => {
-                    let actual: BTreeMap<String, CLValue> = item.args().clone().into();
-                    let mut expected = BTreeMap::new();
-                    expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
-                    expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
-                    assert_eq!(actual, expected);
-                }
-                other => panic!("incorrect type parsed {:?}", other),
-            }
-        }
-
-        #[test]
-        pub fn with_package_name() {
-            let params: Result<ExecutableDeployItem> = PaymentStrParams::with_package_name(
-                PKG_NAME,
-                VERSION,
-                ENTRYPOINT,
-                args_simple(),
-                "",
-            )
-            .try_into();
-            match params {
-                Ok(item @ ExecutableDeployItem::StoredVersionedContractByName { .. }) => {
-                    let actual: BTreeMap<String, CLValue> = item.args().clone().into();
-                    let mut expected = BTreeMap::new();
-                    expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
-                    expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
-                    assert_eq!(actual, expected);
-                }
-                other => panic!("incorrect type parsed {:?}", other),
-            }
-        }
-
-        #[test]
-        pub fn with_package_hash() {
-            let params: Result<ExecutableDeployItem> = PaymentStrParams::with_package_hash(
-                PKG_HASH,
-                VERSION,
-                ENTRYPOINT,
-                args_simple(),
-                "",
-            )
-            .try_into();
-            match params {
-                Ok(item @ ExecutableDeployItem::StoredVersionedContractByHash { .. }) => {
-                    let actual: BTreeMap<String, CLValue> = item.args().clone().into();
-                    let mut expected = BTreeMap::new();
-                    expected.insert("name_01".to_owned(), CLValue::from_t(false).unwrap());
-                    expected.insert("name_02".to_owned(), CLValue::from_t(42u32).unwrap());
-                    assert_eq!(actual, expected);
-                }
-                other => panic!("incorrect type parsed {:?}", other),
-            }
-        }
-    }
-
-    mod deploy_str_params {
-        use humantime::{DurationError, TimestampError};
-
-        use super::*;
-
-        use std::{convert::TryInto, result::Result as StdResult};
-
-        use crate::DeployStrParams;
-
-        fn test_value() -> DeployStrParams<'static> {
-            DeployStrParams {
-                secret_key: "resources/test.pem",
-                ttl: "10s",
-                chain_name: "casper-test-chain-name-1",
-                gas_price: "1",
-                ..Default::default()
-            }
-        }
-
-        #[test]
-        fn should_convert_into_deploy_params() {
-            let deploy_params: StdResult<DeployParams, _> = test_value().try_into();
-            assert!(deploy_params.is_ok());
-        }
-
-        #[test]
-        fn should_fail_to_convert_with_bad_timestamp() {
-            let mut params = test_value();
-            params.timestamp = "garbage";
-            let result: StdResult<DeployParams, Error> = params.try_into();
-            assert!(matches!(
-                result,
-                Err(Error::FailedToParseTimestamp {
-                    context: "timestamp",
-                    error: TimestampError::InvalidFormat
-                })
-            ));
-        }
-
-        #[test]
-        fn should_fail_to_convert_with_bad_gas_price() {
-            let mut params = test_value();
-            params.gas_price = "fifteen";
-            let result: StdResult<DeployParams, Error> = params.try_into();
-            let result = result.map(|_| ());
-            if let Err(Error::FailedToParseInt { context, error: _ }) = result {
-                assert_eq!(context, "gas_price");
-            } else {
-                panic!("should be an error");
-            }
-        }
-
-        #[test]
-        fn should_fail_to_convert_with_bad_chain_name() {
-            let mut params = test_value();
-            params.chain_name = "";
-            let result: StdResult<DeployParams, Error> = params.try_into();
-            assert!(matches!(result, Ok(_)));
-        }
-
-        #[test]
-        fn should_fail_to_convert_with_bad_ttl() {
-            let mut params = test_value();
-            params.ttl = "not_a_ttl";
-            let result: StdResult<DeployParams, Error> = params.try_into();
-            assert!(matches!(
-                result,
-                Err(Error::FailedToParseTimeDiff {
-                    context: "ttl",
-                    error: DurationError::NumberExpected(0)
-                })
-            ));
-        }
-
-        #[test]
-        fn should_fail_to_convert_with_bad_secret_key_path() {
-            let mut params = test_value();
-            params.secret_key = "";
-            let result: StdResult<DeployParams, Error> = params.try_into();
-            if let Err(Error::CryptoError { context, .. }) = result {
-                assert_eq!(context, "secret_key");
-            } else {
-                panic!("should be an error")
-            }
-        }
-
-        #[test]
-        fn should_fail_to_convert_with_bad_dependencies() {
-            use casper_node::crypto::Error as CryptoError;
-            let mut params = test_value();
-            params.dependencies = vec!["invalid dep"];
-            let result: StdResult<DeployParams, Error> = params.try_into();
-            assert!(matches!(
-                result,
-                Err(Error::CryptoError {
-                    context: "dependencies",
-                    error: CryptoError::FromHex(base16::DecodeError::InvalidLength { length: 11 })
-                })
-            ));
-        }
-    }
+fn read_deploy<R: Read>(input: R) -> Result<Deploy, Error> {
+    let deploy: Deploy =
+        serde_json::from_reader(input).map_err(|error| Error::FailedToDecodeFromJson {
+            context: "reading deploy",
+            error,
+        })?;
+    deploy.is_valid_size(MAX_SERIALIZED_SIZE_OF_DEPLOY)?;
+    Ok(deploy)
 }

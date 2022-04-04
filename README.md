@@ -14,49 +14,54 @@ cargo run --release -- help
 <details><summary>example output</summary>
 
 ```commandline
-Casper client 1.5.0
+Casper client 2.0.0
 A client for interacting with the Casper network
 
 USAGE:
     casper-client [SUBCOMMAND]
 
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+OPTIONS:
+    -h, --help       Print help information
+    -V, --version    Print version information
 
 SUBCOMMANDS:
-    put-deploy                      Creates a deploy and sends it to the network for execution
-    make-deploy                     Creates a deploy and outputs it to a file or stdout. As a file, the deploy can
-                                    subsequently be signed by other parties using the 'sign-deploy' subcommand and
-                                    then sent to the network for execution using the 'send-deploy' subcommand
-    sign-deploy                     Reads a previously-saved deploy from a file, cryptographically signs it, and
-                                    outputs it to a file or stdout
-    send-deploy                     Reads a previously-saved deploy from a file and sends it to the network for
-                                    execution
-    transfer                        Transfers funds between purses
-    make-transfer                   Creates a transfer deploy and outputs it to a file or stdout. As a file, the
-                                    deploy can subsequently be signed by other parties using the 'sign-deploy'
-                                    subcommand and then sent to the network for execution using the 'send-deploy'
-                                    subcommand
-    get-deploy                      Retrieves a deploy from the network
-    get-block                       Retrieves a block from the network
-    get-block-transfers             Retrieves all transfers for a block from the network
-    list-deploys                    Retrieves the list of all deploy hashes in a given block
-    get-state-root-hash             Retrieves a state root hash at a given block
-    query-global-state              Retrieves a stored value from the network using either the state root hash or
-                                    block hash
-    get-dictionary-item             Query for values managed in a dictionary
-    get-balance                     Retrieves a purse's balance from the network
-    get-account-info                Retrieve account information from the network
-    get-era-info-by-switch-block    Retrieves era information from the network
-    get-auction-info                Returns the bids and validators as of either a specific block (by height or
-                                    hash), or the most recently added block
-    get-validator-changes           Retrieves status changes of active validators
-    keygen                          Generates account key files in the given directory
-    generate-completion             Generates a shell completion script
-    list-rpcs                       List all currently supported RPCs
-    account-address                 Generates an account hash from a given public key
-    help                            Prints this message or the help of the given subcommand(s)
+    put-deploy               Creates a deploy and sends it to the network for execution
+    make-deploy              Creates a deploy and outputs it to a file or stdout. As a file, the
+                                 deploy can subsequently be signed by other parties using the 'sign-
+                                 deploy' subcommand and then sent to the network for execution using
+                                 the 'send-deploy' subcommand
+    sign-deploy              Reads a previously-saved deploy from a file, cryptographically
+                                 signs it, and outputs it to a file or stdout
+    send-deploy              Reads a previously-saved deploy from a file and sends it to the
+                                 network for execution
+    transfer                 Transfers funds between purses
+    make-transfer            Creates a transfer deploy and outputs it to a file or stdout. As a
+                                 file, the deploy can subsequently be signed by other parties using
+                                 the 'sign-deploy' subcommand and then sent to the network for
+                                 execution using the 'send-deploy' subcommand
+    get-deploy               Retrieves a deploy from the network
+    get-block                Retrieves a block from the network
+    get-block-transfers      Retrieves all transfers for a block from the network
+    list-deploys             Retrieves the list of all deploy hashes in a given block
+    get-state-root-hash      Retrieves a state root hash at a given block
+    get-era-info             Retrieves era information from the network
+    query-global-state       Retrieves a stored value from the network using either the state
+                                 root hash or block hash
+    get-dictionary-item      Query for values managed in a dictionary
+    get-balance              Retrieves a purse's balance from the network
+    get-account              Retrieves account information from the network
+    get-auction-info         Returns the bids and validators as of either a specific block (by
+                                 height or hash), or the most recently added block
+    get-validator-changes    Retrieves status changes of active validators
+    get-peers                Retrieves network identity and address of each of the specified
+                                 node's peers
+    get-node-status          Retrieves status of the specified node
+    get-chainspec            Retrieves the chainspec of the network
+    list-rpcs                List all currently supported RPCs
+    keygen                   Generates account key files in the given directory
+    account-address          Generates an account hash from a given public key
+    generate-completion      Generates a shell completion script
+    help                     Print this message or the help of the given subcommand(s)
 ```
 </details>
 

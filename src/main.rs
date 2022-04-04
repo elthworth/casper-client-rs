@@ -3,36 +3,47 @@ mod block;
 mod command;
 mod common;
 mod deploy;
-mod docs;
 mod generate_completion;
-mod get_account_info;
+mod get_account;
 mod get_auction_info;
 mod get_balance;
+mod get_chainspec;
 mod get_dictionary_item;
-mod get_era_info_by_switch_block;
-mod get_state_hash;
+mod get_era_info;
+mod get_node_status;
+mod get_peers;
+mod get_state_root_hash;
 mod get_validator_changes;
 mod keygen;
+mod list_rpcs;
 mod query_global_state;
 
 use std::process;
 
 use clap::{crate_version, Command};
 
-use casper_client::Error;
-use casper_node::rpcs::{
-    account::PutDeploy,
-    chain::{GetBlock, GetBlockTransfers, GetEraInfoBySwitchBlock, GetStateRootHash},
-    docs::ListRpcs,
-    info::{GetDeploy, GetValidatorChanges},
-    state::{GetAccountInfo, GetAuctionInfo, GetBalance, GetDictionaryItem, QueryGlobalState},
-};
+use casper_client::{cli, rpcs::results::GetChainspecResult, SuccessResponse};
 
-use account_address::GenerateAccountHash as AccountAddress;
+use account_address::AccountAddress;
+use block::{GetBlock, GetBlockTransfers};
 use command::{ClientCommand, Success};
-use deploy::{ListDeploys, MakeDeploy, MakeTransfer, SendDeploy, SignDeploy, Transfer};
+use deploy::{
+    GetDeploy, ListDeploys, MakeDeploy, MakeTransfer, PutDeploy, SendDeploy, SignDeploy, Transfer,
+};
 use generate_completion::GenerateCompletion;
+use get_account::GetAccount;
+use get_auction_info::GetAuctionInfo;
+use get_balance::GetBalance;
+use get_chainspec::GetChainspec;
+use get_dictionary_item::GetDictionaryItem;
+use get_era_info::GetEraInfo;
+use get_node_status::GetNodeStatus;
+use get_peers::GetPeers;
+use get_state_root_hash::GetStateRootHash;
+use get_validator_changes::GetValidatorChanges;
 use keygen::Keygen;
+use list_rpcs::ListRpcs;
+use query_global_state::QueryGlobalState;
 
 const APP_NAME: &str = "Casper client";
 
@@ -49,17 +60,20 @@ enum DisplayOrder {
     GetBlockTransfers,
     ListDeploys,
     GetStateRootHash,
+    GetEraInfo,
     QueryGlobalState,
     GetDictionaryItem,
     GetBalance,
-    GetAccountInfo,
-    GetEraInfo,
+    GetAccount,
     GetAuctionInfo,
     GetValidatorChanges,
+    GetPeers,
+    GetNodeStatus,
+    GetChainspec,
+    ListRpcs,
     Keygen,
-    GenerateCompletion,
-    GetRpcs,
     AccountAddress,
+    GenerateCompletion,
 }
 
 fn cli() -> Command<'static> {
@@ -78,69 +92,68 @@ fn cli() -> Command<'static> {
             DisplayOrder::GetBlockTransfers as usize,
         ))
         .subcommand(ListDeploys::build(DisplayOrder::ListDeploys as usize))
-        .subcommand(GetBalance::build(DisplayOrder::GetBalance as usize))
-        .subcommand(GetAccountInfo::build(DisplayOrder::GetAccountInfo as usize))
         .subcommand(GetStateRootHash::build(
             DisplayOrder::GetStateRootHash as usize,
         ))
-        .subcommand(GetEraInfoBySwitchBlock::build(
-            DisplayOrder::GetEraInfo as usize,
+        .subcommand(GetEraInfo::build(DisplayOrder::GetEraInfo as usize))
+        .subcommand(
+            QueryGlobalState::build(DisplayOrder::QueryGlobalState as usize).alias("query-state"),
+        )
+        .subcommand(GetDictionaryItem::build(
+            DisplayOrder::GetDictionaryItem as usize,
         ))
+        .subcommand(GetBalance::build(DisplayOrder::GetBalance as usize))
+        .subcommand(GetAccount::build(DisplayOrder::GetAccount as usize))
         .subcommand(GetAuctionInfo::build(DisplayOrder::GetAuctionInfo as usize))
         .subcommand(GetValidatorChanges::build(
             DisplayOrder::GetValidatorChanges as usize,
         ))
+        .subcommand(GetPeers::build(DisplayOrder::GetPeers as usize))
+        .subcommand(GetNodeStatus::build(DisplayOrder::GetNodeStatus as usize))
+        .subcommand(GetChainspec::build(DisplayOrder::GetChainspec as usize))
+        .subcommand(ListRpcs::build(DisplayOrder::ListRpcs as usize))
         .subcommand(Keygen::build(DisplayOrder::Keygen as usize))
+        .subcommand(AccountAddress::build(DisplayOrder::AccountAddress as usize))
         .subcommand(GenerateCompletion::build(
             DisplayOrder::GenerateCompletion as usize,
         ))
-        .subcommand(ListRpcs::build(DisplayOrder::GetRpcs as usize))
-        .subcommand(AccountAddress::build(DisplayOrder::AccountAddress as usize))
-        .subcommand(GetDictionaryItem::build(
-            DisplayOrder::GetDictionaryItem as usize,
-        ))
-        .subcommand(
-            QueryGlobalState::build(DisplayOrder::QueryGlobalState as usize).alias("query-state"),
-        )
 }
 
 #[tokio::main]
 async fn main() {
     let arg_matches = cli().get_matches();
-    let (result, matches) = match arg_matches.subcommand() {
-        Some((PutDeploy::NAME, matches)) => (PutDeploy::run(matches).await, matches),
-        Some((MakeDeploy::NAME, matches)) => (MakeDeploy::run(matches).await, matches),
-        Some((SignDeploy::NAME, matches)) => (SignDeploy::run(matches).await, matches),
-        Some((SendDeploy::NAME, matches)) => (SendDeploy::run(matches).await, matches),
-        Some((Transfer::NAME, matches)) => (Transfer::run(matches).await, matches),
-        Some((MakeTransfer::NAME, matches)) => (MakeTransfer::run(matches).await, matches),
-        Some((GetDeploy::NAME, matches)) => (GetDeploy::run(matches).await, matches),
-        Some((GetBlock::NAME, matches)) => (GetBlock::run(matches).await, matches),
-        Some((GetBlockTransfers::NAME, matches)) => {
-            (GetBlockTransfers::run(matches).await, matches)
-        }
-        Some((ListDeploys::NAME, matches)) => (ListDeploys::run(matches).await, matches),
-        Some((GetBalance::NAME, matches)) => (GetBalance::run(matches).await, matches),
-        Some((GetAccountInfo::NAME, matches)) => (GetAccountInfo::run(matches).await, matches),
-        Some((GetStateRootHash::NAME, matches)) => (GetStateRootHash::run(matches).await, matches),
-        Some((GetEraInfoBySwitchBlock::NAME, matches)) => {
-            (GetEraInfoBySwitchBlock::run(matches).await, matches)
-        }
-        Some((GetAuctionInfo::NAME, matches)) => (GetAuctionInfo::run(matches).await, matches),
-        Some((GetValidatorChanges::NAME, matches)) => {
-            (GetValidatorChanges::run(matches).await, matches)
-        }
-        Some((Keygen::NAME, matches)) => (Keygen::run(matches).await, matches),
-        Some((GenerateCompletion::NAME, matches)) => {
-            (GenerateCompletion::run(matches).await, matches)
-        }
-        Some((ListRpcs::NAME, matches)) => (ListRpcs::run(matches).await, matches),
-        Some((AccountAddress::NAME, matches)) => (AccountAddress::run(matches).await, matches),
-        Some((GetDictionaryItem::NAME, matches)) => {
-            (GetDictionaryItem::run(matches).await, matches)
-        }
-        Some((QueryGlobalState::NAME, matches)) => (QueryGlobalState::run(matches).await, matches),
+    let (subcommand_name, matches) = arg_matches.subcommand().unwrap_or_else(|| {
+        let _ = cli().print_long_help();
+        println!();
+        process::exit(1);
+    });
 
+    let result = match subcommand_name {
+        PutDeploy::NAME => PutDeploy::run(matches).await,
+        MakeDeploy::NAME => MakeDeploy::run(matches).await,
+        SignDeploy::NAME => SignDeploy::run(matches).await,
+        SendDeploy::NAME => SendDeploy::run(matches).await,
+        Transfer::NAME => Transfer::run(matches).await,
+        MakeTransfer::NAME => MakeTransfer::run(matches).await,
+        GetDeploy::NAME => GetDeploy::run(matches).await,
+        GetBlock::NAME => GetBlock::run(matches).await,
+        GetBlockTransfers::NAME => GetBlockTransfers::run(matches).await,
+        ListDeploys::NAME => ListDeploys::run(matches).await,
+        GetStateRootHash::NAME => GetStateRootHash::run(matches).await,
+        GetEraInfo::NAME => GetEraInfo::run(matches).await,
+        QueryGlobalState::NAME => QueryGlobalState::run(matches).await,
+        GetDictionaryItem::NAME => GetDictionaryItem::run(matches).await,
+        GetBalance::NAME => GetBalance::run(matches).await,
+        GetAccount::NAME => GetAccount::run(matches).await,
+        GetAuctionInfo::NAME => GetAuctionInfo::run(matches).await,
+        GetValidatorChanges::NAME => GetValidatorChanges::run(matches).await,
+        GetPeers::NAME => GetPeers::run(matches).await,
+        GetNodeStatus::NAME => GetNodeStatus::run(matches).await,
+        GetChainspec::NAME => GetChainspec::run(matches).await,
+        ListRpcs::NAME => ListRpcs::run(matches).await,
+        Keygen::NAME => Keygen::run(matches).await,
+        AccountAddress::NAME => AccountAddress::run(matches).await,
+        GenerateCompletion::NAME => GenerateCompletion::run(matches).await,
         _ => {
             let _ = cli().print_long_help();
             println!();
@@ -153,15 +166,16 @@ async fn main() {
         verbosity_level += 1
     }
 
-    match &result {
+    match result {
         Ok(Success::Response(response)) => {
-            casper_client::pretty_print_at_level(&response, verbosity_level)
+            cli::json_pretty_print(&response, verbosity_level).expect("should print");
+            if verbosity_level > 1 && subcommand_name == GetChainspec::NAME {
+                let success_response: SuccessResponse<GetChainspecResult> =
+                    serde_json::from_value(response).expect("should be a chainspec result");
+                println!("{}", success_response.result.chainspec_bytes);
+            }
         }
         Ok(Success::Output(output)) => println!("{}", output),
-        Err(Error::ResponseIsError(error)) => {
-            casper_client::pretty_print_at_level(&error, verbosity_level);
-            process::exit(1);
-        }
         Err(error) => {
             println!("{}", error);
             process::exit(1);

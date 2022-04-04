@@ -2,10 +2,9 @@
 
 use std::{fs, path::Path};
 
-use casper_node::crypto::AsymmetricKeyExt;
 use casper_types::{AsymmetricType, PublicKey, SecretKey};
 
-use crate::error::{Error, Result};
+use crate::{AsymmetricKeyExt, Error};
 
 /// Default filename for the PEM-encoded secret key file.
 pub const SECRET_KEY_PEM: &str = "secret_key.pem";
@@ -30,14 +29,10 @@ pub const SECP256K1: &str = "secp256k1";
 /// prepended, e.g. `01` for Ed25519, `02` for secp256k1.
 ///
 /// If `force` is true, existing files will be overwritten. If `force` is false and any of the
-/// files exist, [`Error::FileAlreadyExists`](../enum.Error.html#variant.FileAlreadyExists) is
-/// returned and no files are written.
-pub fn generate_files(output_dir: &str, algorithm: &str, force: bool) -> Result<()> {
+/// files exist, [`Error::FileAlreadyExists`] is returned and no files are written.
+pub fn generate_files(output_dir: &str, algorithm: &str, force: bool) -> Result<(), Error> {
     if output_dir.is_empty() {
-        return Err(Error::InvalidArgument {
-            context: "generate_files",
-            error: "empty output_dir provided, must be a valid path".to_string(),
-        });
+        return Err(Error::EmptyKeygenPath);
     }
     let _ = fs::create_dir_all(output_dir).map_err(move |error| Error::IoError {
         context: format!("unable to create directory at '{}'", output_dir),

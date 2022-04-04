@@ -1,16 +1,17 @@
 use async_trait::async_trait;
 use clap::{ArgMatches, Command};
 
-use casper_client::{DeployStrParams, Error};
-use casper_node::rpcs::account::PutDeploy;
+use casper_client::cli::{CliError, DeployStrParams};
 
 use super::creation_common::{self, DisplayOrder};
 use crate::{command::ClientCommand, common, Success};
 
+pub struct PutDeploy;
+
 #[async_trait]
 impl ClientCommand for PutDeploy {
     const NAME: &'static str = "put-deploy";
-    const ABOUT: &'static str = "Creates a deploy and sends it to the network for execution";
+    const ABOUT: &'static str = "Create a deploy and send it to the network for execution";
 
     fn build(display_order: usize) -> Command<'static> {
         let subcommand = Command::new(Self::NAME)
@@ -23,7 +24,7 @@ impl ClientCommand for PutDeploy {
         creation_common::apply_common_creation_options(subcommand, true)
     }
 
-    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
         creation_common::show_arg_examples_and_exit_if_required(matches);
 
         let maybe_rpc_id = common::rpc_id::get(matches);
@@ -33,15 +34,13 @@ impl ClientCommand for PutDeploy {
         let secret_key = common::secret_key::get(matches);
         let timestamp = creation_common::timestamp::get(matches);
         let ttl = creation_common::ttl::get(matches);
-        let gas_price = creation_common::gas_price::get(matches);
-        let dependencies = creation_common::dependencies::get(matches);
         let chain_name = creation_common::chain_name::get(matches);
         let session_account = common::session_account::get(matches)?;
 
         let session_str_params = creation_common::session_str_params(matches);
         let payment_str_params = creation_common::payment_str_params(matches);
 
-        casper_client::put_deploy(
+        casper_client::cli::put_deploy(
             maybe_rpc_id,
             node_address,
             verbosity_level,
@@ -49,8 +48,6 @@ impl ClientCommand for PutDeploy {
                 secret_key,
                 timestamp,
                 ttl,
-                gas_price,
-                dependencies,
                 chain_name,
                 session_account: &session_account,
             },

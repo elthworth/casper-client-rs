@@ -1,16 +1,16 @@
 //! Supported `CLType` and `CLValue` parsing and validation.
 
-use std::{result::Result as StdResult, str::FromStr};
+use std::str::FromStr;
 
 use casper_types::{
     account::AccountHash, bytesrepr::ToBytes, AsymmetricType, CLType, CLTyped, CLValue, Key,
     PublicKey, URef, U128, U256, U512,
 };
 
-use crate::error::{Error, Result};
+use super::CliError;
 
 /// Parse a `CLType` from `&str`.
-pub(crate) fn parse(strval: &str) -> StdResult<CLType, ()> {
+pub(crate) fn parse(strval: &str) -> Result<CLType, ()> {
     let supported_types = supported_cl_types();
     let cl_type = match strval.to_lowercase() {
         t if t == supported_types[0].0 => supported_types[0].1.clone(),
@@ -170,10 +170,10 @@ enum OptionalStatus {
 
 /// Parses to a given CLValue taking into account whether the arg represents an optional type or
 /// not.
-fn parse_to_cl_value<T, F>(optional_status: OptionalStatus, parse: F) -> Result<CLValue>
+fn parse_to_cl_value<T, F>(optional_status: OptionalStatus, parse: F) -> Result<CLValue, CliError>
 where
     T: CLTyped + ToBytes,
-    F: FnOnce() -> Result<T>,
+    F: FnOnce() -> Result<T, CliError>,
 {
     match optional_status {
         OptionalStatus::Some => CLValue::from_t(Some(parse()?)),
@@ -181,7 +181,7 @@ where
         OptionalStatus::NotOptional => CLValue::from_t(parse()?),
     }
     .map_err(|error| {
-        Error::InvalidCLValue(format!(
+        CliError::InvalidCLValue(format!(
             "unable to parse cl value {:?} with optional_status {:?}",
             error, optional_status
         ))
@@ -189,7 +189,7 @@ where
 }
 
 /// Returns a value built from a single arg which has been split into its constituent parts.
-pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
+pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue, CliError> {
     let (cl_type_to_parse, optional_status, trimmed_value) = match cl_type {
         CLType::Option(inner_type) => {
             if value == "null" {
@@ -206,7 +206,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
     };
 
     if value == trimmed_value {
-        return Err(Error::InvalidCLValue(format!(
+        return Err(CliError::InvalidCLValue(format!(
             "value in simple arg should be surrounded by single quotes unless it's a null \
                    optional value (value passed: {})",
             value
@@ -218,7 +218,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
             let parse = || match trimmed_value.to_lowercase().as_str() {
                 "true" | "t" => Ok(true),
                 "false" | "f" => Ok(false),
-                invalid => Err(Error::InvalidCLValue(format!(
+                invalid => Err(CliError::InvalidCLValue(format!(
                     "can't parse {} as a bool. Should be 'true' or 'false'",
                     invalid
                 ))),
@@ -228,7 +228,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
         CLType::I32 => {
             let parse = || {
                 i32::from_str(trimmed_value).map_err(|error| {
-                    Error::InvalidCLValue(format!("can't parse {} as i32: {}", value, error))
+                    CliError::InvalidCLValue(format!("can't parse {} as i32: {}", value, error))
                 })
             };
             parse_to_cl_value(optional_status, parse)
@@ -236,7 +236,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
         CLType::I64 => {
             let parse = || {
                 i64::from_str(trimmed_value).map_err(|error| {
-                    Error::InvalidCLValue(format!(
+                    CliError::InvalidCLValue(format!(
                         "can't parse {} as i64: {}",
                         trimmed_value, error
                     ))
@@ -247,7 +247,10 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
         CLType::U8 => {
             let parse = || {
                 u8::from_str(trimmed_value).map_err(|error| {
-                    Error::InvalidCLValue(format!("can't parse {} as u8: {}", trimmed_value, error))
+                    CliError::InvalidCLValue(format!(
+                        "can't parse {} as u8: {}",
+                        trimmed_value, error
+                    ))
                 })
             };
             parse_to_cl_value(optional_status, parse)
@@ -255,7 +258,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
         CLType::U32 => {
             let parse = || {
                 u32::from_str(trimmed_value).map_err(|error| {
-                    Error::InvalidCLValue(format!(
+                    CliError::InvalidCLValue(format!(
                         "can't parse {} as u32: {}",
                         trimmed_value, error
                     ))
@@ -266,7 +269,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
         CLType::U64 => {
             let parse = || {
                 u64::from_str(trimmed_value).map_err(|error| {
-                    Error::InvalidCLValue(format!(
+                    CliError::InvalidCLValue(format!(
                         "can't parse {} as u64: {}",
                         trimmed_value, error
                     ))
@@ -277,7 +280,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
         CLType::U128 => {
             let parse = || {
                 U128::from_dec_str(trimmed_value).map_err(|error| {
-                    Error::InvalidCLValue(format!(
+                    CliError::InvalidCLValue(format!(
                         "can't parse {} as U128: {}",
                         trimmed_value, error
                     ))
@@ -288,7 +291,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
         CLType::U256 => {
             let parse = || {
                 U256::from_dec_str(trimmed_value).map_err(|error| {
-                    Error::InvalidCLValue(format!(
+                    CliError::InvalidCLValue(format!(
                         "can't parse {} as U256: {}",
                         trimmed_value, error
                     ))
@@ -299,7 +302,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
         CLType::U512 => {
             let parse = || {
                 U512::from_dec_str(trimmed_value).map_err(|error| {
-                    Error::InvalidCLValue(format!(
+                    CliError::InvalidCLValue(format!(
                         "can't parse {} as U512: {}",
                         trimmed_value, error
                     ))
@@ -310,7 +313,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
         CLType::Unit => {
             let parse = || {
                 if !trimmed_value.is_empty() {
-                    return Err(Error::InvalidCLValue(format!(
+                    return Err(CliError::InvalidCLValue(format!(
                         "can't parse {} as unit. Should be ''",
                         trimmed_value
                     )));
@@ -326,7 +329,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
         CLType::Key => {
             let parse = || {
                 Key::from_formatted_str(trimmed_value).map_err(|error| {
-                    Error::InvalidCLValue(format!(
+                    CliError::InvalidCLValue(format!(
                         "can't parse {} as Key: {}",
                         trimmed_value, error
                     ))
@@ -337,7 +340,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
         CLType::ByteArray(32) => {
             let parse = || {
                 AccountHash::from_formatted_str(trimmed_value).map_err(|error| {
-                    Error::InvalidCLValue(format!(
+                    CliError::InvalidCLValue(format!(
                         "can't parse {} as AccountHash: {:?}.\
                         AccountHash type values should start with 'account-hash-' prefix.",
                         trimmed_value, error
@@ -349,7 +352,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
         CLType::URef => {
             let parse = || {
                 URef::from_formatted_str(trimmed_value).map_err(|error| {
-                    Error::InvalidCLValue(format!(
+                    CliError::InvalidCLValue(format!(
                         "can't parse {} as URef: {:?}. \
                         URef type values should start with 'uref-' prefix.",
                         trimmed_value, error
@@ -361,7 +364,7 @@ pub fn parts_to_cl_value(cl_type: CLType, value: &str) -> Result<CLValue> {
         CLType::PublicKey => {
             let parse = || {
                 let pub_key = PublicKey::from_hex(trimmed_value).map_err(|error| {
-                    Error::InvalidCLValue(format!(
+                    CliError::InvalidCLValue(format!(
                         "can't parse {} as PublicKey: {:?}",
                         trimmed_value, error
                     ))

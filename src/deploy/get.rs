@@ -3,10 +3,11 @@ use std::str;
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
-use casper_client::Error;
-use casper_node::rpcs::info::GetDeploy;
+use casper_client::cli::CliError;
 
 use crate::{command::ClientCommand, common, Success};
+
+pub struct GetDeploy;
 
 /// This struct defines the order in which the args are shown for this subcommand's help message.
 enum DisplayOrder {
@@ -42,7 +43,7 @@ mod deploy_hash {
 #[async_trait]
 impl ClientCommand for GetDeploy {
     const NAME: &'static str = "get-deploy";
-    const ABOUT: &'static str = "Retrieves a deploy from the network";
+    const ABOUT: &'static str = "Retrieve a deploy from the network";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)
@@ -56,13 +57,13 @@ impl ClientCommand for GetDeploy {
             .arg(deploy_hash::arg())
     }
 
-    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);
         let deploy_hash = deploy_hash::get(matches);
 
-        casper_client::get_deploy(maybe_rpc_id, node_address, verbosity_level, deploy_hash)
+        casper_client::cli::get_deploy(maybe_rpc_id, node_address, verbosity_level, deploy_hash)
             .await
             .map(Success::from)
     }

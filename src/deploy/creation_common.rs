@@ -5,7 +5,7 @@ use std::process;
 
 use clap::{Arg, ArgGroup, ArgMatches, Command};
 
-use casper_client::{help, PaymentStrParams, SessionStrParams};
+use casper_client::cli::{help, PaymentStrParams, SessionStrParams};
 
 use crate::common;
 
@@ -24,8 +24,6 @@ pub(super) enum DisplayOrder {
     TransferId,
     Timestamp,
     Ttl,
-    GasPrice,
-    Dependencies,
     ChainName,
     SessionCode,
     SessionArgSimple,
@@ -236,61 +234,6 @@ pub(super) mod ttl {
 
     pub(in crate::deploy) fn get(matches: &ArgMatches) -> &str {
         matches.value_of(ARG_NAME).unwrap_or_default()
-    }
-}
-
-/// Handles providing the arg for and retrieval of the gas price.
-pub(super) mod gas_price {
-    use super::*;
-
-    const ARG_NAME: &str = "gas-price";
-    const ARG_VALUE_NAME: &str = common::ARG_INTEGER;
-    const ARG_DEFAULT: &str = "1";
-    const ARG_HELP: &str =
-        "Conversion rate between the cost of Wasm opcodes and the motes sent by the payment code";
-
-    pub(in crate::deploy) fn arg() -> Arg<'static> {
-        Arg::new(ARG_NAME)
-            .long(ARG_NAME)
-            .required(false)
-            .value_name(ARG_VALUE_NAME)
-            .default_value(ARG_DEFAULT)
-            .help(ARG_HELP)
-            .display_order(DisplayOrder::GasPrice as usize)
-    }
-
-    pub(in crate::deploy) fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
-    }
-}
-
-/// Handles providing the arg for and retrieval of the deploy dependencies.
-pub(super) mod dependencies {
-    use super::*;
-
-    const ARG_NAME: &str = "dependency";
-    const ARG_VALUE_NAME: &str = common::ARG_HEX_STRING;
-    const ARG_HELP: &str =
-        "A hex-encoded deploy hash of a deploy which must be executed before this deploy";
-
-    pub(in crate::deploy) fn arg() -> Arg<'static> {
-        Arg::new(ARG_NAME)
-            .long(ARG_NAME)
-            .required(false)
-            .multiple_occurrences(true)
-            .value_name(ARG_VALUE_NAME)
-            .takes_value(true)
-            .help(ARG_HELP)
-            .display_order(DisplayOrder::Dependencies as usize)
-    }
-
-    pub(in crate::deploy) fn get(matches: &ArgMatches) -> Vec<&str> {
-        matches
-            .values_of(ARG_NAME)
-            .iter()
-            .cloned()
-            .flatten()
-            .collect()
     }
 }
 
@@ -535,8 +478,6 @@ pub(super) fn apply_common_creation_options(
         )
         .arg(timestamp::arg())
         .arg(ttl::arg())
-        .arg(gas_price::arg())
-        .arg(dependencies::arg())
         .arg(chain_name::arg())
         .arg(common::session_account::arg(
             DisplayOrder::SessionAccount as usize,

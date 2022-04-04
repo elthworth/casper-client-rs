@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use clap::{crate_name, Arg, ArgMatches, Command};
 use clap_complete::Shell;
 
-use casper_client::Error;
+use casper_client::{cli::CliError, Error};
 
 use crate::{command::ClientCommand, common, Success};
 
@@ -81,7 +81,7 @@ pub struct GenerateCompletion {}
 #[async_trait]
 impl ClientCommand for GenerateCompletion {
     const NAME: &'static str = "generate-completion";
-    const ABOUT: &'static str = "Generates a shell completion script";
+    const ABOUT: &'static str = "Generate a shell completion script";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)
@@ -92,7 +92,7 @@ impl ClientCommand for GenerateCompletion {
             .arg(shell::arg())
     }
 
-    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
         let output_dir = output_dir::get(matches);
         let force = common::force::get(matches);
         let shell = shell::get(matches);
@@ -107,9 +107,11 @@ impl ClientCommand for GenerateCompletion {
             process::exit(1);
         }
 
-        let mut output_file = File::create(&output_file_path).map_err(|error| Error::IoError {
-            context: output_file_path.display().to_string(),
-            error,
+        let mut output_file = File::create(&output_file_path).map_err(|error| {
+            CliError::Core(Error::IoError {
+                context: output_file_path.display().to_string(),
+                error,
+            })
         })?;
 
         clap_complete::generate(shell, &mut super::cli(), crate_name!(), &mut output_file);

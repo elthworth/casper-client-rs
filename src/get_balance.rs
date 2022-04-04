@@ -3,10 +3,11 @@ use std::str;
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
-use casper_client::Error;
-use casper_node::rpcs::state::GetBalance;
+use casper_client::cli::CliError;
 
 use crate::{command::ClientCommand, common, Success};
+
+pub struct GetBalance;
 
 /// This struct defines the order in which the args are shown for this subcommand's help message.
 enum DisplayOrder {
@@ -48,7 +49,7 @@ mod purse_uref {
 #[async_trait]
 impl ClientCommand for GetBalance {
     const NAME: &'static str = "get-balance";
-    const ABOUT: &'static str = "Retrieves a purse's balance from the network";
+    const ABOUT: &'static str = "Retrieve a purse's balance from the network";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)
@@ -65,14 +66,14 @@ impl ClientCommand for GetBalance {
             .arg(purse_uref::arg())
     }
 
-    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);
         let state_root_hash = common::state_root_hash::get(matches);
         let purse_uref = purse_uref::get(matches);
 
-        casper_client::get_balance(
+        casper_client::cli::get_balance(
             maybe_rpc_id,
             node_address,
             verbosity_level,

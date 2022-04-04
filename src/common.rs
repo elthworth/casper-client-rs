@@ -2,7 +2,7 @@ use std::fs;
 
 use clap::{Arg, ArgMatches};
 
-use casper_client::Error;
+use casper_client::cli::CliError;
 use casper_types::PublicKey;
 
 pub const ARG_PATH: &str = "PATH";
@@ -201,10 +201,10 @@ pub mod block_identifier {
 /// Internal module to handle providing the arg for and retrieval of the public key or session
 /// account.
 mod sealed_public_key {
-    use casper_node::crypto::AsymmetricKeyExt;
     use casper_types::AsymmetricType;
 
     use super::*;
+    use casper_client::{cli::CliError, AsymmetricKeyExt};
 
     const ARG_VALUE_NAME: &str = "FORMATTED STRING or PATH";
 
@@ -226,7 +226,7 @@ mod sealed_public_key {
         matches: &ArgMatches,
         arg_name: &str,
         required: bool,
-    ) -> Result<String, Error> {
+    ) -> Result<String, CliError> {
         let value = matches.value_of(arg_name).unwrap_or_else(|| {
             if required {
                 panic!("should have {} arg", arg_name)
@@ -247,7 +247,10 @@ mod sealed_public_key {
                     "Can't parse the contents of {} as a public key: {}",
                     value, error
                 );
-                Error::FailedToParseKey
+                CliError::FailedToParsePublicKey {
+                    context: "get public key",
+                    error,
+                }
             })?;
             return Ok(hex_public_key);
         }
@@ -273,7 +276,7 @@ pub(super) mod public_key {
         sealed_public_key::arg(order, ARG_NAME, ARG_HELP, IS_REQUIRED).short(ARG_SHORT)
     }
 
-    pub fn get(matches: &ArgMatches) -> Result<String, Error> {
+    pub fn get(matches: &ArgMatches) -> Result<String, CliError> {
         sealed_public_key::get(matches, ARG_NAME, IS_REQUIRED)
     }
 }
@@ -296,7 +299,7 @@ pub(super) mod session_account {
         sealed_public_key::arg(display_order, ARG_NAME, ARG_HELP, IS_REQUIRED)
     }
 
-    pub fn get(matches: &ArgMatches) -> Result<String, Error> {
+    pub fn get(matches: &ArgMatches) -> Result<String, CliError> {
         sealed_public_key::get(matches, ARG_NAME, IS_REQUIRED)
     }
 }

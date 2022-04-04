@@ -3,10 +3,11 @@ use std::str;
 
 use clap::{ArgMatches, Command};
 
-use casper_client::Error;
-use casper_node::rpcs::chain::GetBlockTransfers;
+use casper_client::cli::CliError;
 
 use crate::{command::ClientCommand, common, Success};
+
+pub struct GetBlockTransfers;
 
 /// This struct defines the order in which the args are shown for this subcommand.
 enum DisplayOrder {
@@ -19,7 +20,7 @@ enum DisplayOrder {
 #[async_trait]
 impl ClientCommand for GetBlockTransfers {
     const NAME: &'static str = "get-block-transfers";
-    const ABOUT: &'static str = "Retrieves all transfers for a block from the network";
+    const ABOUT: &'static str = "Retrieve all transfers for a block from the network";
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)
@@ -35,13 +36,13 @@ impl ClientCommand for GetBlockTransfers {
             ))
     }
 
-    async fn run(matches: &ArgMatches) -> Result<Success, Error> {
+    async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);
         let maybe_block_id = common::block_identifier::get(matches);
 
-        casper_client::get_block_transfers(
+        casper_client::cli::get_block_transfers(
             maybe_rpc_id,
             node_address,
             verbosity_level,

@@ -50,7 +50,7 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.RPM_REPO_AK }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.RPM_REPO_SK }}
-        run: ./ci/publish_to_s3_repo.sh source_dir="./target/release/rpmbuild/RPMS/x86_64" target_bucket=${{secrets.RPM_BUCKET}}
+        run: ./ci/publish_rpm_to_repo.sh source_dir="./target/release/rpmbuild/RPMS/x86_64" target_bucket=${{secrets.RPM_BUCKET}}
 
       - name: Invalidate cloudfront
         uses: chetan/invalidate-cloudfront-action@v1

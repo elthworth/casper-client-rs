@@ -26,6 +26,20 @@ jobs:
           profile: minimal
           components: rustfmt, clippy
 
+      - name: Install deps
+        run: |
+          echo "deb http://repo.aptly.info/ squeeze main" | sudo tee -a /etc/apt/sources.list.d/aptly.list
+          wget -qO - https://www.aptly.info/pubkey.txt | sudo apt-key add -
+          sudo apt-get update
+          sudo apt-get install -y awscli aptly=1.2.0
+          aptly config show
+
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v4
+        with:
+          gpg_private_key: ${{ secrets.APTLY_GPG_KEY }}
+          passphrase: ${{ secrets.APTLY_GPG_PASS }}
+
       - name: Install cargo deb
         uses: actions-rs/cargo@v1
         with:
@@ -44,10 +58,34 @@ jobs:
           command: deb
           args: -p casper-client --no-build --variant ${{ matrix.code_name }}
 
+      - name: Upload binaries to repo
+        env:
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.APTLY_SECRET_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.APTLY_ACCESS_KEY }}
+          PLUGIN_REPO_NAME: ${{ secrets.APTLY_REPO }}
+          PLUGIN_REGION: ${{ secrets.APTLY_REGION }}
+          PLUGIN_GPG_KEY: ${{ secrets.APTLY_GPG_KEY }}
+          PLUGIN_GPG_PASS: ${{ secrets.APTLY_GPG_PASS }}
+          PLUGIN_ACL: 'public-read'
+          PLUGIN_PREFIX: 'releases'
+          PLUGIN_DEB_PATH: './target/debian'
+          PLUGIN_OS_CODENAME: ${{ matrix.code_name }}
+        run: ./ci/publish_deb_to_repo.sh
+
+      - name: Invalidate cloudfront
+        uses: chetan/invalidate-cloudfront-action@v1
+        env:
+          DISTRIBUTION: ${{ secrets.APTLY_DIST_ID }}
+          PATHS: "/*"
+          AWS_REGION: ${{ secrets.APTLY_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.APTLY_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.APTLY_SECRET_KEY }}
+
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/debian/casper-client*
           tag: ${{ github.ref }}
+          overwrite: true
           file_glob: true

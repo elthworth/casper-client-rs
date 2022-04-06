@@ -1,6 +1,6 @@
 [package]
 name = "casper-client"
-version = "1.4.3" # when updating, also update 'html_root_url' in lib.rs
+version = "1.4.4" # when updating, also update 'html_root_url' in lib.rs
 authors = ["Marc Brinkmann <marc@casperlabs.io>", "Fraser Hutchison <fraser@casperlabs.io>"]
 edition = "2021"
 description = "A client library and binary for interacting with the Casper network"
@@ -47,6 +47,9 @@ tempfile = "3"
 thiserror = "1"
 tokio = { version = "1.17", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
 untrusted = "0.7.1"
+
+[build-dependencies]
+vergen = { version = "7", default-features = false, features = ["git"] }
 
 [dev-dependencies]
 anyhow = "1"

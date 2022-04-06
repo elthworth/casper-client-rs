@@ -21,6 +21,7 @@ mod query_global_state;
 use std::process;
 
 use clap::{crate_version, Command};
+use once_cell::sync::Lazy;
 
 use casper_client::{cli, rpcs::results::GetChainspecResult, SuccessResponse};
 
@@ -46,6 +47,20 @@ use list_rpcs::ListRpcs;
 use query_global_state::QueryGlobalState;
 
 const APP_NAME: &str = "Casper client";
+
+static VERSION: Lazy<String> =
+    Lazy::new(
+        || match option_env!("VERGEN_GIT_SHA_SHORT").map(|sha| sha.to_lowercase()) {
+            None => crate_version!().to_string(),
+            Some(git_sha_short) => {
+                if git_sha_short.to_lowercase() == "unknown" {
+                    crate_version!().to_string()
+                } else {
+                    format!("{}-{}", crate_version!(), git_sha_short)
+                }
+            }
+        },
+    );
 
 /// This struct defines the order in which the subcommands are shown in the app's help message.
 enum DisplayOrder {
@@ -78,7 +93,7 @@ enum DisplayOrder {
 
 fn cli() -> Command<'static> {
     Command::new(APP_NAME)
-        .version(crate_version!())
+        .version(VERSION.as_str())
         .about("A client for interacting with the Casper network")
         .subcommand(PutDeploy::build(DisplayOrder::PutDeploy as usize))
         .subcommand(MakeDeploy::build(DisplayOrder::MakeDeploy as usize))

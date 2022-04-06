@@ -80,6 +80,7 @@ impl RpcCall {
             Digest::from_hex(deploy_hash).map_err(|error| map_hashing_error(error)("deploy"))?;
         let params = GetDeployParams {
             deploy_hash: DeployHash::new(hash),
+            finalized_approvals: false,
         };
         GetDeploy::request_with_map_params(self, params).await
     }

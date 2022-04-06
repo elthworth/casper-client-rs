@@ -13,6 +13,13 @@ All notable changes to this project will be documented in this file.  The format
 
 ## [Unreleased]
 
+
+
+## [1.4.4] - 2022-04-06
+
+### Changed
+* Update dependencies.
+
 ### Fixed
 * Restore the `-p` short form of `--public-key` arg for `get-account-info` and `account-address` subcommands.
 
@@ -139,7 +146,8 @@ No changes.
 
 
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0
-[unreleased]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.3...main
+[unreleased]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.4...main
+[1.4.4]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.3...v1.4.4
 [1.4.3]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.0...v1.4.1

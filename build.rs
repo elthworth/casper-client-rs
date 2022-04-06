@@ -1,3 +1,5 @@
+use vergen::{Config, ShaKind};
+
 fn main() {
     #[cfg(feature = "ffi")]
     {
@@ -30,4 +32,8 @@ fn main() {
             .expect("Unable to generate bindings")
             .write_to_file(&output_file);
     }
+
+    let mut config = Config::default();
+    *config.git_mut().sha_kind_mut() = ShaKind::Short;
+    let _ = vergen::vergen(config);
 }

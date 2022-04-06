@@ -42,6 +42,7 @@ tokio = { version = "1.14", features = ["macros", "net", "rt-multi-thread", "syn
 
 [build-dependencies]
 cbindgen = { version = "0.20", optional = true }
+vergen = { version = "7", default-features = false, features = ["git"] }
 
 [dev-dependencies]
 anyhow = "1"

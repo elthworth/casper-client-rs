@@ -2,7 +2,8 @@
 
 mod asymmetric_key;
 mod asymmetric_key_ext;
-mod error;
+/// Cryptographic error.
+pub mod error;
 
 pub(crate) use asymmetric_key::sign;
 pub use asymmetric_key_ext::AsymmetricKeyExt;

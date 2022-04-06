@@ -21,7 +21,8 @@
 //!   [`Block`] height or empty.  If empty, the latest `Block` known on the server will be used.
 
 mod cl_type;
-mod deploy;
+/// Deploy module.
+pub mod deploy;
 mod deploy_str_params;
 mod dictionary_item_str_params;
 mod error;

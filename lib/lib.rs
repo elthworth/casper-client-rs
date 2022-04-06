@@ -36,7 +36,7 @@
 )]
 
 pub mod cli;
-pub(crate) mod crypto;
+pub mod crypto;
 mod error;
 mod json_rpc;
 pub mod keygen;

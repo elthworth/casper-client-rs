@@ -6,7 +6,8 @@ use crate::{
     TransferTarget,
 };
 
-pub(super) fn with_payment_and_session(
+/// Creates new Deploy with specified payment and session data.
+pub fn with_payment_and_session(
     deploy_params: DeployStrParams,
     payment_params: PaymentStrParams,
     session_params: SessionStrParams,
@@ -31,7 +32,8 @@ pub(super) fn with_payment_and_session(
     Ok(deploy)
 }
 
-pub(super) fn new_transfer(
+/// Creates new Transfer with specified data.
+pub fn new_transfer(
     amount: &str,
     source_purse: Option<URef>,
     target_account: &str,

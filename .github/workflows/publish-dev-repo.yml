@@ -1,0 +1,81 @@
+---
+name: publish-dev-repo
+
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  build_deb_dev:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-18.04
+            code_name: bionic
+          - os: ubuntu-20.04
+            code_name: focal
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: rustfmt, clippy
+
+      - name: Install deps
+        run: |
+          echo "deb http://repo.aptly.info/ squeeze main" | sudo tee -a /etc/apt/sources.list.d/aptly.list
+          wget -qO - https://www.aptly.info/pubkey.txt | sudo apt-key add -
+          sudo apt-get update
+          sudo apt-get install -y awscli aptly=1.2.0
+          aptly config show
+
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v4
+        with:
+          gpg_private_key: ${{ secrets.APTLY_GPG_KEY }}
+          passphrase: ${{ secrets.APTLY_GPG_PASS }}
+
+      - name: Install cargo deb
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-deb
+
+      - name: Cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+
+      - name: Cargo deb
+        uses: actions-rs/cargo@v1
+        with:
+          command: deb
+          args: -p casper-client --no-build --variant ${{ matrix.code_name }}
+
+      - name: Upload binaries to repo
+        env:
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.APTLY_SECRET_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.APTLY_ACCESS_KEY }}
+          PLUGIN_REPO_NAME: ${{ secrets.APTLY_REPO_DEV }}
+          PLUGIN_REGION: ${{ secrets.APTLY_REGION }}
+          PLUGIN_GPG_KEY: ${{ secrets.APTLY_GPG_KEY }}
+          PLUGIN_GPG_PASS: ${{ secrets.APTLY_GPG_PASS }}
+          PLUGIN_ACL: 'public-read'
+          PLUGIN_PREFIX: 'releases'
+          PLUGIN_DEB_PATH: './target/debian'
+          PLUGIN_OS_CODENAME: ${{ matrix.code_name }}
+        run: ./ci/publish_deb_to_repo.sh
+
+      - name: Invalidate cloudfront
+        uses: chetan/invalidate-cloudfront-action@v1
+        env:
+          DISTRIBUTION: ${{ secrets.APTLY_DIST_ID_DEV }}
+          PATHS: "/*"
+          AWS_REGION: ${{ secrets.APTLY_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.APTLY_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.APTLY_SECRET_KEY }}

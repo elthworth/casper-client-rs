@@ -45,17 +45,6 @@ pub struct NextUpgrade {
     pub protocol_version: ProtocolVersion,
 }
 
-/// The various possible states of operation for the node.
-#[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
-pub enum NodeState {
-    /// The node is fast-syncing.
-    FastSyncing,
-    /// The node is syncing to genesis.
-    SyncingToGenesis,
-    /// The node is participating.
-    Participating,
-}
-
 /// The `result` field of a successful JSON-RPC response to a `info_get_status` request.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
@@ -81,6 +70,4 @@ pub struct GetNodeStatusResult {
     pub build_version: String,
     /// Time that passed since the node has started.
     pub uptime: TimeDiff,
-    /// The current state of node.
-    pub node_state: NodeState,
 }

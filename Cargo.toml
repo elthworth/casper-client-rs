@@ -62,8 +62,8 @@ warp = "0.3.2"
 warp-json-rpc = "0.3.0"
 
 [patch.crates-io]
-casper-hashing = { git = "https://github.com/casper-network/casper-node", branch = "dev" }
-casper-types = { git = "https://github.com/casper-network/casper-node", branch = "dev" }
+casper-hashing = { git = "https://github.com/casper-network/casper-node", branch = "release-1.5.0" }
+casper-types = { git = "https://github.com/casper-network/casper-node", branch = "release-1.5.0" }
 
 [package.metadata.deb]
 features = ["vendored-openssl"]

@@ -317,12 +317,7 @@ pub(super) mod arg_simple {
         }
 
         pub fn get(matches: &ArgMatches) -> Vec<&str> {
-            matches
-                .values_of(ARG_NAME)
-                .iter()
-                .cloned()
-                .flatten()
-                .collect()
+            matches.values_of(ARG_NAME).into_iter().flatten().collect()
         }
     }
 
@@ -337,12 +332,7 @@ pub(super) mod arg_simple {
         }
 
         pub fn get(matches: &ArgMatches) -> Vec<&str> {
-            matches
-                .values_of(ARG_NAME)
-                .iter()
-                .cloned()
-                .flatten()
-                .collect()
+            matches.values_of(ARG_NAME).into_iter().flatten().collect()
         }
     }
 

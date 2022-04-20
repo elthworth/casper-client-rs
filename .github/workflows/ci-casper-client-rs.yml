@@ -3,12 +3,12 @@ name: ci-casper-client-rs
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, release-2.0.0]
     paths-ignore:
       - '**.md'
 
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, release-2.0.0]
     paths-ignore:
       - '**.md'
 

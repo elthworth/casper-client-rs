@@ -29,6 +29,7 @@ mod error;
 mod global_state_str_params;
 mod parse;
 mod payment_str_params;
+mod purse_identifier_str_params;
 mod session_str_params;
 #[cfg(test)]
 mod tests;
@@ -46,9 +47,9 @@ use crate::{
             GetAccountResult, GetAuctionInfoResult, GetBalanceResult, GetBlockResult,
             GetBlockTransfersResult, GetChainspecResult, GetDeployResult, GetDictionaryItemResult,
             GetEraInfoResult, GetNodeStatusResult, GetPeersResult, GetStateRootHashResult,
-            GetValidatorChangesResult, ListRpcsResult, PutDeployResult, QueryGlobalStateResult,
+            GetValidatorChangesResult, ListRpcsResult, PutDeployResult, QueryGlobalStateResult, QueryBalanceResult
         },
-        DictionaryItemIdentifier, GlobalStateIdentifier,
+        DictionaryItemIdentifier, common::GlobalStateIdentifier, PurseIdentifier
     },
     SuccessResponse,
 };
@@ -58,8 +59,9 @@ pub use cl_type::help;
 pub use deploy_str_params::DeployStrParams;
 pub use dictionary_item_str_params::DictionaryItemStrParams;
 pub use error::CliError;
-pub use global_state_str_params::GlobalStateStrParams;
+pub use global_state_str_params::{GlobalStateStrIdentifier, GlobalStateStrParams};
 pub use payment_str_params::PaymentStrParams;
+pub use purse_identifier_str_params::{PurseStrIdentifier, PurseStrParams};
 pub use session_str_params::SessionStrParams;
 
 /// Creates a [`Deploy`] and sends it to the network for execution.
@@ -325,6 +327,39 @@ pub async fn query_global_state(
         global_state_identifier,
         key,
         path,
+    )
+    .await
+    .map_err(CliError::from)
+}
+
+/// Retrieves a purse's balance from global state using either a Block hash, state root hash
+/// or block height.
+/// `maybe_global_state_str_params` contains global state identifier options for this query.  See
+/// [`GlobalStateStrParams`] for more details.
+/// `purse_str_params` contains purse identifier options for this query.
+/// See [`PurseStrParams`] for more details.
+///
+/// For details of the parameters, see [the module docs](crate::cli#common-parameters).
+pub async fn query_balance(
+    maybe_rpc_id: &str,
+    node_address: &str,
+    verbosity_level: u64,
+    maybe_global_state_params: Option<GlobalStateStrParams<'_>>,
+    purse_str_params: PurseStrParams,
+) -> Result<SuccessResponse<QueryBalanceResult>, CliError> {
+    let rpc_id = parse::rpc_id(maybe_rpc_id);
+    let verbosity = parse::verbosity(verbosity_level);
+    let maybe_global_state_identifier = match maybe_global_state_params {
+        Some(str_params) => Some(GlobalStateIdentifier::try_from(str_params)?),
+        None => None,
+    };
+    let purse_identifier = PurseIdentifier::try_from(purse_str_params)?;
+    crate::query_balance(
+        rpc_id,
+        node_address,
+        verbosity,
+        maybe_global_state_identifier,
+        purse_identifier,
     )
     .await
     .map_err(CliError::from)

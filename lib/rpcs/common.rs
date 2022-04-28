@@ -3,6 +3,7 @@
 #[cfg(doc)]
 use crate::types::Block;
 use crate::types::BlockHash;
+use casper_hashing::Digest;
 
 use serde::{Deserialize, Serialize};
 
@@ -14,4 +15,18 @@ pub enum BlockIdentifier {
     Hash(BlockHash),
     /// Identify the block by its height.
     Height(u64),
+}
+
+/// Identifier for possible ways to query global state.
+///
+/// Soon to be deprecated in favour of [`BlockIdentifier`].
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
+pub enum GlobalStateIdentifier {
+    /// Query using a block hash.
+    BlockHash(BlockHash),
+    /// Query using a block height.
+    BlockHeight(u64),
+    /// Query using the state root hash.
+    StateRootHash(Digest),
 }

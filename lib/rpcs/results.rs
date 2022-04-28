@@ -23,4 +23,5 @@ pub use super::v1_5_0::list_rpcs::{
     SchemaParam,
 };
 pub use super::v1_5_0::put_deploy::PutDeployResult;
+pub use super::v1_5_0::query_balance::QueryBalanceResult;
 pub use super::v1_5_0::query_global_state::QueryGlobalStateResult;

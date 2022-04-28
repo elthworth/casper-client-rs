@@ -60,13 +60,15 @@ use casper_hashing::Digest;
 use casper_types::Transfer;
 use casper_types::{Key, PublicKey, SecretKey, URef};
 
+use crate::rpcs::results::QueryBalanceResult;
 pub use crypto::{AsymmetricKeyExt, CryptoError};
 pub use error::Error;
 use json_rpc::JsonRpcCall;
 pub use json_rpc::{JsonRpcId, SuccessResponse};
 pub use output_kind::OutputKind;
+use rpcs::v1_5_0::query_balance::{PurseIdentifier, QueryBalanceParams, QUERY_BALANCE_METHOD};
 use rpcs::{
-    common::BlockIdentifier,
+    common::{BlockIdentifier, GlobalStateIdentifier},
     results::{
         GetAccountResult, GetAuctionInfoResult, GetBalanceResult, GetBlockResult,
         GetBlockTransfersResult, GetChainspecResult, GetDeployResult, GetDictionaryItemResult,
@@ -91,7 +93,7 @@ use rpcs::{
         put_deploy::{PutDeployParams, PUT_DEPLOY_METHOD},
         query_global_state::{QueryGlobalStateParams, QUERY_GLOBAL_STATE_METHOD},
     },
-    DictionaryItemIdentifier, GlobalStateIdentifier,
+    DictionaryItemIdentifier,
 };
 pub use transfer_target::TransferTarget;
 #[cfg(doc)]
@@ -282,6 +284,24 @@ pub async fn query_global_state(
     let params = QueryGlobalStateParams::new(global_state_identifier, key, path);
     JsonRpcCall::new(rpc_id, node_address, verbosity)
         .send_request(QUERY_GLOBAL_STATE_METHOD, Some(params))
+        .await
+}
+
+/// Retrieves a purse's balance at a given state root hash.
+///
+/// Sends a JSON-RPC `query_balance` request to the specified node.
+///
+/// For details of the parameters, see [the module docs](crate#common-parameters).
+pub async fn query_balance(
+    rpc_id: JsonRpcId,
+    node_address: &str,
+    verbosity: Verbosity,
+    maybe_global_state_identifier: Option<GlobalStateIdentifier>,
+    purse_identifier: PurseIdentifier,
+) -> Result<SuccessResponse<QueryBalanceResult>, Error> {
+    let params = QueryBalanceParams::new(maybe_global_state_identifier, purse_identifier);
+    JsonRpcCall::new(rpc_id, node_address, verbosity)
+        .send_request(QUERY_BALANCE_METHOD, Some(params))
         .await
 }
 

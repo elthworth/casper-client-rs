@@ -3,7 +3,7 @@ use std::{fs, str};
 use async_trait::async_trait;
 use clap::{Arg, ArgGroup, ArgMatches, Command};
 
-use casper_client::cli::{CliError, GlobalStateStrParams};
+use casper_client::cli::{CliError, GlobalStateStrIdentifier, GlobalStateStrParams};
 
 use crate::{command::ClientCommand, common, Success};
 
@@ -159,14 +159,18 @@ mod path {
 fn global_state_str_params(matches: &ArgMatches) -> GlobalStateStrParams<'_> {
     if let Some(state_root_hash) = state_root_hash::get(matches) {
         return GlobalStateStrParams {
-            is_block_hash: false,
-            hash_value: state_root_hash,
+            str_identifier: GlobalStateStrIdentifier::Hash {
+                is_block_hash: false,
+            },
+            identifier_value: state_root_hash,
         };
     }
     if let Some(block_hash) = block_hash::get(matches) {
         return GlobalStateStrParams {
-            is_block_hash: true,
-            hash_value: block_hash,
+            str_identifier: GlobalStateStrIdentifier::Hash {
+                is_block_hash: true,
+            },
+            identifier_value: block_hash,
         };
     }
     unreachable!("clap arg groups and parsing should prevent this for global state params")

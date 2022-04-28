@@ -263,7 +263,7 @@ mod sealed_public_key {
 pub(super) mod public_key {
     use super::*;
 
-    const ARG_NAME: &str = "public-key";
+    pub const ARG_NAME: &str = "public-key";
     const ARG_SHORT: char = 'p';
     const IS_REQUIRED: bool = true;
     const ARG_HELP: &str =
@@ -301,5 +301,31 @@ pub(super) mod session_account {
 
     pub fn get(matches: &ArgMatches) -> Result<String, CliError> {
         sealed_public_key::get(matches, ARG_NAME, IS_REQUIRED)
+    }
+}
+
+/// Handles providing the arg for and retrieval of the purse URef.
+pub(super) mod purse_uref {
+    use super::*;
+
+    pub const ARG_NAME: &str = "purse-uref";
+    const ARG_SHORT: char = 'u';
+    const ARG_VALUE_NAME: &str = "FORMATTED STRING";
+    const ARG_HELP: &str =
+        "The URef under which the purse is stored. This must be a properly formatted URef \
+        \"uref-<HEX STRING>-<THREE DIGIT INTEGER>\"";
+
+    pub fn arg(display_order: usize, is_required: bool) -> Arg<'static> {
+        Arg::new(ARG_NAME)
+            .long(ARG_NAME)
+            .short(ARG_SHORT)
+            .required(is_required)
+            .value_name(ARG_VALUE_NAME)
+            .help(ARG_HELP)
+            .display_order(display_order)
+    }
+
+    pub fn get(matches: &ArgMatches) -> Option<&str> {
+        matches.value_of(ARG_NAME)
     }
 }

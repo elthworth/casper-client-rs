@@ -16,6 +16,7 @@ mod get_state_root_hash;
 mod get_validator_changes;
 mod keygen;
 mod list_rpcs;
+mod query_balance;
 mod query_global_state;
 
 use std::process;
@@ -25,6 +26,7 @@ use once_cell::sync::Lazy;
 
 use casper_client::{cli, rpcs::results::GetChainspecResult, SuccessResponse};
 
+use crate::query_balance::QueryBalance;
 use account_address::AccountAddress;
 use block::{GetBlock, GetBlockTransfers};
 use command::{ClientCommand, Success};
@@ -77,6 +79,7 @@ enum DisplayOrder {
     GetStateRootHash,
     GetEraInfo,
     QueryGlobalState,
+    QueryBalance,
     GetDictionaryItem,
     GetBalance,
     GetAccount,
@@ -114,6 +117,7 @@ fn cli() -> Command<'static> {
         .subcommand(
             QueryGlobalState::build(DisplayOrder::QueryGlobalState as usize).alias("query-state"),
         )
+        .subcommand(QueryBalance::build(DisplayOrder::QueryBalance as usize))
         .subcommand(GetDictionaryItem::build(
             DisplayOrder::GetDictionaryItem as usize,
         ))
@@ -157,6 +161,7 @@ async fn main() {
         GetStateRootHash::NAME => GetStateRootHash::run(matches).await,
         GetEraInfo::NAME => GetEraInfo::run(matches).await,
         QueryGlobalState::NAME => QueryGlobalState::run(matches).await,
+        QueryBalance::NAME => QueryBalance::run(matches).await,
         GetDictionaryItem::NAME => GetDictionaryItem::run(matches).await,
         GetBalance::NAME => GetBalance::run(matches).await,
         GetAccount::NAME => GetAccount::run(matches).await,

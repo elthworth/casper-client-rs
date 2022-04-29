@@ -4,9 +4,9 @@
 use crate::types::Block;
 use crate::types::BlockHash;
 
-use casper_hashing::Digest;
-
 use serde::{Deserialize, Serialize};
+
+use casper_hashing::Digest;
 
 /// Enum of possible ways to identify a [`Block`].
 #[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]

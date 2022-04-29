@@ -60,20 +60,19 @@ use casper_hashing::Digest;
 use casper_types::Transfer;
 use casper_types::{Key, PublicKey, SecretKey, URef};
 
-use crate::rpcs::results::QueryBalanceResult;
 pub use crypto::{AsymmetricKeyExt, CryptoError};
 pub use error::Error;
 use json_rpc::JsonRpcCall;
 pub use json_rpc::{JsonRpcId, SuccessResponse};
 pub use output_kind::OutputKind;
-use rpcs::v1_5_0::query_balance::{PurseIdentifier, QueryBalanceParams, QUERY_BALANCE_METHOD};
 use rpcs::{
     common::{BlockIdentifier, GlobalStateIdentifier},
     results::{
         GetAccountResult, GetAuctionInfoResult, GetBalanceResult, GetBlockResult,
         GetBlockTransfersResult, GetChainspecResult, GetDeployResult, GetDictionaryItemResult,
         GetEraInfoResult, GetNodeStatusResult, GetPeersResult, GetStateRootHashResult,
-        GetValidatorChangesResult, ListRpcsResult, PutDeployResult, QueryGlobalStateResult,
+        GetValidatorChangesResult, ListRpcsResult, PutDeployResult, QueryBalanceResult,
+        QueryGlobalStateResult,
     },
     v1_5_0::{
         get_account::{GetAccountParams, GET_ACCOUNT_METHOD},
@@ -91,6 +90,7 @@ use rpcs::{
         get_validator_changes::GET_VALIDATOR_CHANGES_METHOD,
         list_rpcs::LIST_RPCS_METHOD,
         put_deploy::{PutDeployParams, PUT_DEPLOY_METHOD},
+        query_balance::{PurseIdentifier, QueryBalanceParams, QUERY_BALANCE_METHOD},
         query_global_state::{QueryGlobalStateParams, QUERY_GLOBAL_STATE_METHOD},
     },
     DictionaryItemIdentifier,

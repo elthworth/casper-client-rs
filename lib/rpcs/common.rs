@@ -3,6 +3,7 @@
 #[cfg(doc)]
 use crate::types::Block;
 use crate::types::BlockHash;
+
 use casper_hashing::Digest;
 
 use serde::{Deserialize, Serialize};

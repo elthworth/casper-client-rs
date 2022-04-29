@@ -1,7 +1,5 @@
-use crate::cli::CliError;
-use crate::rpcs::v1_5_0::query_balance::PurseIdentifier;
-use casper_types::account::AccountHash;
-use casper_types::{AsymmetricType, PublicKey, URef};
+use crate::{cli::CliError, rpcs::v1_5_0::query_balance::PurseIdentifier};
+use casper_types::{account::AccountHash, AsymmetricType, PublicKey, URef};
 
 #[derive(Debug)]
 /// The ways to construct a PurseIdentifier from a string.

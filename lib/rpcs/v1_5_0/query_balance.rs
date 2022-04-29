@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+use casper_types::{account::AccountHash, ProtocolVersion, PublicKey, URef, U512};
+
 use crate::rpcs::common::GlobalStateIdentifier;
-use casper_types::account::AccountHash;
-use casper_types::{ProtocolVersion, PublicKey, URef, U512};
 
 pub(crate) const QUERY_BALANCE_METHOD: &str = "query_balance";
 

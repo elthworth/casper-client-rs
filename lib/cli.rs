@@ -43,13 +43,15 @@ use casper_types::{AsymmetricType, PublicKey, URef};
 
 use crate::{
     rpcs::{
+        common::GlobalStateIdentifier,
         results::{
             GetAccountResult, GetAuctionInfoResult, GetBalanceResult, GetBlockResult,
             GetBlockTransfersResult, GetChainspecResult, GetDeployResult, GetDictionaryItemResult,
             GetEraInfoResult, GetNodeStatusResult, GetPeersResult, GetStateRootHashResult,
-            GetValidatorChangesResult, ListRpcsResult, PutDeployResult, QueryGlobalStateResult, QueryBalanceResult
+            GetValidatorChangesResult, ListRpcsResult, PutDeployResult, QueryBalanceResult,
+            QueryGlobalStateResult,
         },
-        DictionaryItemIdentifier, common::GlobalStateIdentifier, PurseIdentifier
+        DictionaryItemIdentifier, PurseIdentifier,
     },
     SuccessResponse,
 };

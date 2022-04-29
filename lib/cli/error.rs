@@ -9,7 +9,7 @@ use casper_types::{Key, PublicKey, URef};
 
 #[cfg(doc)]
 use crate::{
-    rpcs::{DictionaryItemIdentifier, common::GlobalStateIdentifier},
+    rpcs::{common::GlobalStateIdentifier, DictionaryItemIdentifier},
     types::{TimeDiff, Timestamp},
 };
 

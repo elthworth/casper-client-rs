@@ -5,7 +5,6 @@ pub(crate) mod get_auction_info;
 pub(crate) mod get_balance;
 pub(crate) mod get_block;
 pub(crate) mod get_block_transfers;
-pub(crate) mod get_chainspec;
 pub(crate) mod get_deploy;
 pub(crate) mod get_dictionary_item;
 pub(crate) mod get_era_info;

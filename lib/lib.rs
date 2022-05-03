@@ -73,7 +73,7 @@ use rpcs::{
         GetEraInfoResult, GetNodeStatusResult, GetPeersResult, GetStateRootHashResult,
         GetValidatorChangesResult, ListRpcsResult, PutDeployResult, QueryGlobalStateResult,
     },
-    v1_4_5::{
+    v1_5_0::{
         get_account::{GetAccountParams, GET_ACCOUNT_METHOD},
         get_auction_info::{GetAuctionInfoParams, GET_AUCTION_INFO_METHOD},
         get_balance::{GetBalanceParams, GET_BALANCE_METHOD},

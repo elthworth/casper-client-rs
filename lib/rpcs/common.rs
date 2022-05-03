@@ -21,12 +21,12 @@ pub enum BlockIdentifier {
 /// Identifier for possible ways to query global state.
 ///
 /// Soon to be deprecated in favour of [`BlockIdentifier`].
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub enum GlobalStateIdentifier {
-    /// Query using a block hash.
+    /// Query using the state root hash in the given block, identified by its block hash.
     BlockHash(BlockHash),
-    /// Query using a block height.
+    /// Query using the state root hash in the given block, identified by its block height.
     BlockHeight(u64),
     /// Query using the state root hash.
     StateRootHash(Digest),

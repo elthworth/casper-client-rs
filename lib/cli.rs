@@ -26,10 +26,8 @@ pub mod deploy;
 mod deploy_str_params;
 mod dictionary_item_str_params;
 mod error;
-mod global_state_str_params;
 mod parse;
 mod payment_str_params;
-mod purse_identifier_str_params;
 mod session_str_params;
 #[cfg(test)]
 mod tests;
@@ -43,7 +41,6 @@ use casper_types::{AsymmetricType, PublicKey, URef};
 
 use crate::{
     rpcs::{
-        common::GlobalStateIdentifier,
         results::{
             GetAccountResult, GetAuctionInfoResult, GetBalanceResult, GetBlockResult,
             GetBlockTransfersResult, GetChainspecResult, GetDeployResult, GetDictionaryItemResult,
@@ -51,7 +48,7 @@ use crate::{
             GetValidatorChangesResult, ListRpcsResult, PutDeployResult, QueryBalanceResult,
             QueryGlobalStateResult,
         },
-        DictionaryItemIdentifier, PurseIdentifier,
+        DictionaryItemIdentifier,
     },
     SuccessResponse,
 };
@@ -61,9 +58,7 @@ pub use cl_type::help;
 pub use deploy_str_params::DeployStrParams;
 pub use dictionary_item_str_params::DictionaryItemStrParams;
 pub use error::CliError;
-pub use global_state_str_params::{GlobalStateStrIdentifier, GlobalStateStrParams};
 pub use payment_str_params::PaymentStrParams;
-pub use purse_identifier_str_params::{PurseStrIdentifier, PurseStrParams};
 pub use session_str_params::SessionStrParams;
 
 /// Creates a [`Deploy`] and sends it to the network for execution.
@@ -294,27 +289,29 @@ pub async fn get_era_info(
         .map_err(CliError::from)
 }
 
-/// Retrieves a [`StoredValue`] from global state using either a Block hash or a state root hash.
+/// Retrieves a [`StoredValue`] from global state.
 ///
-/// `global_state_str_params` contains global state identifier options for this query.  See
-/// [`GlobalStateStrParams`] for more details.
+/// `maybe_block_id` or `maybe_state_root_hash` identify the global state root hash to be used for
+/// the query.  Exactly one of these args should be an empty string.
 ///
-/// `key` must be a formatted [`PublicKey`] or [`Key`].
-///
-/// * `path` is comprised of components starting from the `key`, separated by `/`s.
+/// `key` must be a formatted [`PublicKey`] or [`Key`].  `path` is comprised of components starting
+/// from the `key`, separated by `/`s.  It may be empty.
 ///
 /// For details of other parameters, see [the module docs](crate::cli#common-parameters).
 pub async fn query_global_state(
     maybe_rpc_id: &str,
     node_address: &str,
     verbosity_level: u64,
-    global_state_str_params: GlobalStateStrParams<'_>,
+    maybe_block_id: &str,
+    maybe_state_root_hash: &str,
     key: &str,
     path: &str,
 ) -> Result<SuccessResponse<QueryGlobalStateResult>, CliError> {
     let rpc_id = parse::rpc_id(maybe_rpc_id);
     let verbosity = parse::verbosity(verbosity_level);
-    let global_state_identifier = GlobalStateIdentifier::try_from(global_state_str_params)?;
+    let global_state_identifier =
+        parse::global_state_identifier(maybe_block_id, maybe_state_root_hash)?
+            .ok_or(CliError::FailedToParseStateIdentifier)?;
     let key = parse::key_for_query(key)?;
     let path = if path.is_empty() {
         vec![]
@@ -334,28 +331,28 @@ pub async fn query_global_state(
     .map_err(CliError::from)
 }
 
-/// Retrieves a purse's balance from global state using either a Block hash, state root hash
-/// or block height.
-/// `maybe_global_state_str_params` contains global state identifier options for this query.  See
-/// [`GlobalStateStrParams`] for more details.
-/// `purse_str_params` contains purse identifier options for this query.
-/// See [`PurseStrParams`] for more details.
+/// Retrieves a purse's balance from global state.
 ///
-/// For details of the parameters, see [the module docs](crate::cli#common-parameters).
+/// `maybe_block_id` or `maybe_state_root_hash` identify the global state root hash to be used for
+/// the query.  If both are empty, the latest block is used.
+///
+/// `purse_id` can be a properly-formatted public key, account hash or URef.
+///
+/// For details of other parameters, see [the module docs](crate::cli#common-parameters).
 pub async fn query_balance(
     maybe_rpc_id: &str,
     node_address: &str,
     verbosity_level: u64,
-    maybe_global_state_params: Option<GlobalStateStrParams<'_>>,
-    purse_str_params: PurseStrParams,
+    maybe_block_id: &str,
+    maybe_state_root_hash: &str,
+    purse_id: &str,
 ) -> Result<SuccessResponse<QueryBalanceResult>, CliError> {
     let rpc_id = parse::rpc_id(maybe_rpc_id);
     let verbosity = parse::verbosity(verbosity_level);
-    let maybe_global_state_identifier = match maybe_global_state_params {
-        Some(str_params) => Some(GlobalStateIdentifier::try_from(str_params)?),
-        None => None,
-    };
-    let purse_identifier = PurseIdentifier::try_from(purse_str_params)?;
+    let maybe_global_state_identifier =
+        parse::global_state_identifier(maybe_block_id, maybe_state_root_hash)?;
+    let purse_identifier = parse::purse_identifier(purse_id)?;
+
     crate::query_balance(
         rpc_id,
         node_address,

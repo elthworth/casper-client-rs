@@ -26,6 +26,7 @@ All notable changes to this project will be documented in this file.  The format
 * Move the previous top-level library API, which targets CLI consumers, to a new module `cli`.
 * Rename subcommand `get-account-info` to `get-account` while retaining the previous name as an alias for backwards compatibility.
 * Rename subcommand `get-era-info-by-switch-block` to `get-era-info` while retaining the previous name as an alias for backwards compatibility.
+* Alias subcommand `query-balance` to `get-balance` to retain backwards compatibility.
 
 ### Removed
 * Remove the C library support.

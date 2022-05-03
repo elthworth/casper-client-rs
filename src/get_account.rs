@@ -8,7 +8,8 @@ use casper_client::cli::CliError;
 use crate::{command::ClientCommand, common, Success};
 
 /// Legacy name of command.
-const ALIAS: &str = "get-account-info";
+const COMMAND_ALIAS: &str = "get-account-info";
+const PUBLIC_KEY_IS_REQUIRED: bool = true;
 
 pub struct GetAccount;
 
@@ -28,7 +29,7 @@ impl ClientCommand for GetAccount {
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)
-            .alias(ALIAS)
+            .alias(COMMAND_ALIAS)
             .about(Self::ABOUT)
             .display_order(display_order)
             .arg(common::verbose::arg(DisplayOrder::Verbose as usize))
@@ -38,8 +39,12 @@ impl ClientCommand for GetAccount {
             .arg(common::rpc_id::arg(DisplayOrder::RpcId as usize))
             .arg(common::block_identifier::arg(
                 DisplayOrder::BlockIdentifier as usize,
+                true,
             ))
-            .arg(common::public_key::arg(DisplayOrder::PublicKey as usize))
+            .arg(common::public_key::arg(
+                DisplayOrder::PublicKey as usize,
+                PUBLIC_KEY_IS_REQUIRED,
+            ))
     }
 
     async fn run(matches: &ArgMatches) -> Result<Success, CliError> {
@@ -47,7 +52,7 @@ impl ClientCommand for GetAccount {
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);
         let block_identifier = common::block_identifier::get(matches);
-        let public_key = common::public_key::get(matches)?;
+        let public_key = common::public_key::get(matches, PUBLIC_KEY_IS_REQUIRED)?;
 
         casper_client::cli::get_account(
             maybe_rpc_id,

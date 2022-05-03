@@ -287,7 +287,7 @@ pub async fn query_global_state(
         .await
 }
 
-/// Retrieves a purse's balance at a given state root hash.
+/// Retrieves a purse's balance from global state at a given [`Block`] or state root hash.
 ///
 /// Sends a JSON-RPC `query_balance` request to the specified node.
 ///

@@ -80,7 +80,6 @@ impl From<crypto::Error> for Error {
             crypto::Error::FromHex(error) => Error::FromHex(error),
             crypto::Error::FromBase64(error) => Error::FromBase64(error),
             crypto::Error::SignatureError(error) => Error::Signature(error),
-            crypto::Error::System(error_str) => Error::System(error_str),
         }
     }
 }

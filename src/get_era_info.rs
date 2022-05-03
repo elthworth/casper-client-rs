@@ -7,7 +7,8 @@ use casper_client::cli::CliError;
 
 use crate::{command::ClientCommand, common, Success};
 
-const ALIAS: &str = "get-era-info-by-switch-block";
+/// Legacy name of command.
+const COMMAND_ALIAS: &str = "get-era-info-by-switch-block";
 
 pub struct GetEraInfo;
 
@@ -26,7 +27,7 @@ impl ClientCommand for GetEraInfo {
 
     fn build(display_order: usize) -> Command<'static> {
         Command::new(Self::NAME)
-            .alias(ALIAS)
+            .alias(COMMAND_ALIAS)
             .about(Self::ABOUT)
             .display_order(display_order)
             .arg(common::verbose::arg(DisplayOrder::Verbose as usize))
@@ -36,6 +37,7 @@ impl ClientCommand for GetEraInfo {
             .arg(common::rpc_id::arg(DisplayOrder::RpcId as usize))
             .arg(common::block_identifier::arg(
                 DisplayOrder::BlockIdentifier as usize,
+                true,
             ))
     }
 

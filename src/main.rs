@@ -118,7 +118,6 @@ fn cli() -> Command<'static> {
         .subcommand(GetDictionaryItem::build(
             DisplayOrder::GetDictionaryItem as usize,
         ))
-        // .subcommand(GetBalance::build(DisplayOrder::GetBalance as usize))
         .subcommand(GetAccount::build(DisplayOrder::GetAccount as usize))
         .subcommand(GetAuctionInfo::build(DisplayOrder::GetAuctionInfo as usize))
         .subcommand(GetValidatorChanges::build(

@@ -62,7 +62,7 @@ mod key {
                     value, error
                 );
                 CliError::FailedToParsePublicKey {
-                    context: "get dictionary item public key",
+                    context: "get dictionary item public key".to_string(),
                     error,
                 }
             })?;
@@ -213,6 +213,7 @@ impl ClientCommand for GetDictionaryItem {
             .arg(common::rpc_id::arg(DisplayOrder::RpcId as usize))
             .arg(common::state_root_hash::arg(
                 DisplayOrder::StateRootHash as usize,
+                true,
             ))
             .arg(account_hash::arg())
             .arg(contract_hash::arg())
@@ -238,7 +239,8 @@ impl ClientCommand for GetDictionaryItem {
         let maybe_rpc_id = common::rpc_id::get(matches);
         let node_address = common::node_address::get(matches);
         let verbosity_level = common::verbose::get(matches);
-        let state_root_hash = common::state_root_hash::get(matches);
+        let state_root_hash = common::state_root_hash::get(matches)
+            .unwrap_or_else(|| panic!("should have {} arg", common::state_root_hash::ARG_NAME));
 
         let account_hash = account_hash::get(matches)?;
         let contract_hash = contract_hash::get(matches)?;

@@ -33,6 +33,7 @@ impl ClientCommand for GetStateRootHash {
             .arg(common::rpc_id::arg(DisplayOrder::RpcId as usize))
             .arg(common::block_identifier::arg(
                 DisplayOrder::BlockHash as usize,
+                true,
             ))
     }
 

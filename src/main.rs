@@ -6,7 +6,6 @@ mod deploy;
 mod generate_completion;
 mod get_account;
 mod get_auction_info;
-mod get_balance;
 mod get_chainspec;
 mod get_dictionary_item;
 mod get_era_info;
@@ -16,6 +15,7 @@ mod get_state_root_hash;
 mod get_validator_changes;
 mod keygen;
 mod list_rpcs;
+mod query_balance;
 mod query_global_state;
 
 use std::process;
@@ -34,7 +34,6 @@ use deploy::{
 use generate_completion::GenerateCompletion;
 use get_account::GetAccount;
 use get_auction_info::GetAuctionInfo;
-use get_balance::GetBalance;
 use get_chainspec::GetChainspec;
 use get_dictionary_item::GetDictionaryItem;
 use get_era_info::GetEraInfo;
@@ -44,6 +43,7 @@ use get_state_root_hash::GetStateRootHash;
 use get_validator_changes::GetValidatorChanges;
 use keygen::Keygen;
 use list_rpcs::ListRpcs;
+use query_balance::QueryBalance;
 use query_global_state::QueryGlobalState;
 
 const APP_NAME: &str = "Casper client";
@@ -77,8 +77,8 @@ enum DisplayOrder {
     GetStateRootHash,
     GetEraInfo,
     QueryGlobalState,
+    QueryBalance,
     GetDictionaryItem,
-    GetBalance,
     GetAccount,
     GetAuctionInfo,
     GetValidatorChanges,
@@ -111,13 +111,13 @@ fn cli() -> Command<'static> {
             DisplayOrder::GetStateRootHash as usize,
         ))
         .subcommand(GetEraInfo::build(DisplayOrder::GetEraInfo as usize))
-        .subcommand(
-            QueryGlobalState::build(DisplayOrder::QueryGlobalState as usize).alias("query-state"),
-        )
+        .subcommand(QueryGlobalState::build(
+            DisplayOrder::QueryGlobalState as usize,
+        ))
+        .subcommand(QueryBalance::build(DisplayOrder::QueryBalance as usize))
         .subcommand(GetDictionaryItem::build(
             DisplayOrder::GetDictionaryItem as usize,
         ))
-        .subcommand(GetBalance::build(DisplayOrder::GetBalance as usize))
         .subcommand(GetAccount::build(DisplayOrder::GetAccount as usize))
         .subcommand(GetAuctionInfo::build(DisplayOrder::GetAuctionInfo as usize))
         .subcommand(GetValidatorChanges::build(
@@ -157,8 +157,8 @@ async fn main() {
         GetStateRootHash::NAME => GetStateRootHash::run(matches).await,
         GetEraInfo::NAME => GetEraInfo::run(matches).await,
         QueryGlobalState::NAME => QueryGlobalState::run(matches).await,
+        QueryBalance::NAME => QueryBalance::run(matches).await,
         GetDictionaryItem::NAME => GetDictionaryItem::run(matches).await,
-        GetBalance::NAME => GetBalance::run(matches).await,
         GetAccount::NAME => GetAccount::run(matches).await,
         GetAuctionInfo::NAME => GetAuctionInfo::run(matches).await,
         GetValidatorChanges::NAME => GetValidatorChanges::run(matches).await,

@@ -19,12 +19,14 @@ All notable changes to this project will be documented in this file.  The format
 * Add support for new node RPC method `info_get_chainspec`, used in the binary's new `get-chainspec` subcommand.
 * Add support for new node RPC method `info_get_status`, used in the binary's new `get-node-status` subcommand.
 * Add support for new node RPC method `info_get_peers`, used in the binary's new `get-peers` subcommand.
+* Add support for new node RPC method `query_balance`, used in the binary's new `query-balance` subcommand.
 
 ### Changed
 * Update dependencies.
 * Move the previous top-level library API, which targets CLI consumers, to a new module `cli`.
 * Rename subcommand `get-account-info` to `get-account` while retaining the previous name as an alias for backwards compatibility.
 * Rename subcommand `get-era-info-by-switch-block` to `get-era-info` while retaining the previous name as an alias for backwards compatibility.
+* Alias subcommand `query-balance` to `get-balance` to retain backwards compatibility.
 
 ### Removed
 * Remove the C library support.

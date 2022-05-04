@@ -150,25 +150,23 @@ pub mod force {
 pub mod state_root_hash {
     use super::*;
 
-    const ARG_NAME: &str = "state-root-hash";
+    pub(crate) const ARG_NAME: &str = "state-root-hash";
     const ARG_SHORT: char = 's';
     const ARG_VALUE_NAME: &str = super::ARG_HEX_STRING;
     const ARG_HELP: &str = "Hex-encoded hash of the state root";
 
-    pub(crate) fn arg(order: usize) -> Arg<'static> {
+    pub(crate) fn arg(order: usize, is_required: bool) -> Arg<'static> {
         Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
-            .required(true)
+            .required(is_required)
             .value_name(ARG_VALUE_NAME)
             .help(ARG_HELP)
             .display_order(order)
     }
 
-    pub(crate) fn get(matches: &ArgMatches) -> &str {
-        matches
-            .value_of(ARG_NAME)
-            .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
+    pub(crate) fn get(matches: &ArgMatches) -> Option<&str> {
+        matches.value_of(ARG_NAME)
     }
 }
 
@@ -176,20 +174,25 @@ pub mod state_root_hash {
 pub mod block_identifier {
     use super::*;
 
-    const ARG_NAME: &str = "block-identifier";
+    pub(crate) const ARG_NAME: &str = "block-identifier";
     const ARG_SHORT: char = 'b';
     const ARG_VALUE_NAME: &str = "HEX STRING OR INTEGER";
-    const ARG_HELP: &str =
+    const ARG_HELP: &str = "Hex-encoded block hash or height of the block";
+    const ARG_HELP_WITH_EXTRA_INFO: &str =
         "Hex-encoded block hash or height of the block. If not given, the last block added to the \
         chain as known at the given node will be used";
 
-    pub(crate) fn arg(order: usize) -> Arg<'static> {
+    pub(crate) fn arg(order: usize, extra_help_string: bool) -> Arg<'static> {
         Arg::new(ARG_NAME)
             .long(ARG_NAME)
             .short(ARG_SHORT)
             .required(false)
             .value_name(ARG_VALUE_NAME)
-            .help(ARG_HELP)
+            .help(if extra_help_string {
+                ARG_HELP_WITH_EXTRA_INFO
+            } else {
+                ARG_HELP
+            })
             .display_order(order)
     }
 
@@ -198,43 +201,47 @@ pub mod block_identifier {
     }
 }
 
-/// Internal module to handle providing the arg for and retrieval of the public key or session
-/// account.
-mod sealed_public_key {
+/// Handles providing the arg for and retrieval of the public key.
+pub(super) mod public_key {
+    use casper_client::{cli::CliError, AsymmetricKeyExt};
     use casper_types::AsymmetricType;
 
     use super::*;
-    use casper_client::{cli::CliError, AsymmetricKeyExt};
 
+    pub const ARG_NAME: &str = "public-key";
+    const ARG_SHORT: char = 'p';
     const ARG_VALUE_NAME: &str = "FORMATTED STRING or PATH";
+    const ARG_HELP: &str =
+        "This must be a properly formatted public key. The public key may instead be read in from \
+        a file, in which case enter the path to the file as the --public-key argument. The file \
+        should be one of the two public key files generated via the `keygen` subcommand; \
+        \"public_key_hex\" or \"public_key.pem\"";
 
-    pub(super) fn arg(
-        order: usize,
-        arg_name: &'static str,
-        arg_help: &'static str,
-        required: bool,
-    ) -> Arg<'static> {
-        Arg::new(arg_name)
-            .long(arg_name)
-            .required(required)
+    pub fn arg(order: usize, is_required: bool) -> Arg<'static> {
+        Arg::new(ARG_NAME)
+            .long(ARG_NAME)
+            .short(ARG_SHORT)
+            .required(is_required)
             .value_name(ARG_VALUE_NAME)
-            .help(arg_help)
+            .help(ARG_HELP)
             .display_order(order)
     }
 
-    pub(super) fn get(
-        matches: &ArgMatches,
-        arg_name: &str,
-        required: bool,
-    ) -> Result<String, CliError> {
-        let value = matches.value_of(arg_name).unwrap_or_else(|| {
-            if required {
-                panic!("should have {} arg", arg_name)
+    pub fn get(matches: &ArgMatches, is_required: bool) -> Result<String, CliError> {
+        let value = matches.value_of(ARG_NAME).unwrap_or_else(|| {
+            if is_required {
+                panic!("should have {} arg", ARG_NAME)
             } else {
                 ""
             }
         });
+        try_read_from_file(value)
+    }
 
+    /// Treats `value` as a path and tries to read as a PEM-encoded or hex-encoded public key.  If
+    /// there is a file at the given path and parsing fails, an error is returned.  If no file is
+    /// found, `value` is returned unmodified.
+    pub fn try_read_from_file(value: &str) -> Result<String, CliError> {
         // Try to read as a PublicKey PEM file first.
         if let Ok(public_key) = PublicKey::from_file(value) {
             return Ok(public_key.to_hex());
@@ -243,12 +250,11 @@ mod sealed_public_key {
         // Try to read as a hex-encoded PublicKey file next.
         if let Ok(hex_public_key) = fs::read_to_string(value) {
             let _ = PublicKey::from_hex(&hex_public_key).map_err(|error| {
-                eprintln!(
-                    "Can't parse the contents of {} as a public key: {}",
-                    value, error
-                );
                 CliError::FailedToParsePublicKey {
-                    context: "get public key",
+                    context: format!(
+                        "Can't parse the contents of {} as a public key: {}",
+                        value, error
+                    ),
                     error,
                 }
             })?;
@@ -259,35 +265,13 @@ mod sealed_public_key {
     }
 }
 
-/// Handles providing the arg for and retrieval of the public key.
-pub(super) mod public_key {
-    use super::*;
-
-    const ARG_NAME: &str = "public-key";
-    const ARG_SHORT: char = 'p';
-    const IS_REQUIRED: bool = true;
-    const ARG_HELP: &str =
-        "This must be a properly formatted public key. The public key may instead be read in from \
-        a file, in which case enter the path to the file as the --public-key argument. The file \
-        should be one of the two public key files generated via the `keygen` subcommand; \
-        \"public_key_hex\" or \"public_key.pem\"";
-
-    pub fn arg(order: usize) -> Arg<'static> {
-        sealed_public_key::arg(order, ARG_NAME, ARG_HELP, IS_REQUIRED).short(ARG_SHORT)
-    }
-
-    pub fn get(matches: &ArgMatches) -> Result<String, CliError> {
-        sealed_public_key::get(matches, ARG_NAME, IS_REQUIRED)
-    }
-}
-
 /// Handles providing the arg for and retrieval of the session account arg when specifying an
 /// account for a Deploy.
 pub(super) mod session_account {
     use super::*;
 
     pub const ARG_NAME: &str = "session-account";
-    const IS_REQUIRED: bool = false;
+    const ARG_VALUE_NAME: &str = "FORMATTED STRING or PATH";
     const ARG_HELP: &str =
         "The hex-encoded public key of the account context under which the session code will be
         executed. This must be a properly formatted public key. The public key may instead be read
@@ -295,11 +279,17 @@ pub(super) mod session_account {
         argument. The file should be one of the two public key files generated via the `keygen`
         subcommand; \"public_key_hex\" or \"public_key.pem\"";
 
-    pub fn arg(display_order: usize) -> Arg<'static> {
-        sealed_public_key::arg(display_order, ARG_NAME, ARG_HELP, IS_REQUIRED)
+    pub fn arg(order: usize) -> Arg<'static> {
+        Arg::new(ARG_NAME)
+            .long(ARG_NAME)
+            .required(false)
+            .value_name(ARG_VALUE_NAME)
+            .help(ARG_HELP)
+            .display_order(order)
     }
 
     pub fn get(matches: &ArgMatches) -> Result<String, CliError> {
-        sealed_public_key::get(matches, ARG_NAME, IS_REQUIRED)
+        let value = matches.value_of(ARG_NAME).unwrap_or_default();
+        super::public_key::try_read_from_file(value)
     }
 }

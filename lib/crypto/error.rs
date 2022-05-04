@@ -76,7 +76,7 @@ impl From<PemError> for Error {
 impl From<crypto::Error> for Error {
     fn from(error: crypto::Error) -> Self {
         match error {
-            crypto::Error::AsymmetricKey(string) => Error::AsymmetricKey(string),
+            crypto::Error::AsymmetricKey(error_str) => Error::AsymmetricKey(error_str),
             crypto::Error::FromHex(error) => Error::FromHex(error),
             crypto::Error::FromBase64(error) => Error::FromBase64(error),
             crypto::Error::SignatureError(error) => Error::Signature(error),

@@ -3,9 +3,9 @@ use std::num::ParseIntError;
 use humantime::{DurationError, TimestampError};
 use thiserror::Error;
 
-use casper_types::{CLValueError, KeyFromStrError, UIntParseError, URefFromStrError};
 #[cfg(doc)]
-use casper_types::{Key, PublicKey, URef};
+use casper_types::{account::AccountHash, Key, PublicKey, URef};
+use casper_types::{CLValueError, KeyFromStrError, UIntParseError, URefFromStrError};
 
 #[cfg(doc)]
 use crate::{
@@ -26,12 +26,21 @@ pub enum CliError {
     },
 
     /// Failed to parse a [`PublicKey`] from a formatted string.
-    #[error("failed to parse {context} as a key: {error}")]
+    #[error("failed to parse {context} as a public key: {error}")]
     FailedToParsePublicKey {
+        /// Contextual description of where this error occurred.
+        context: String,
+        /// The actual error raised.
+        error: casper_types::crypto::Error,
+    },
+
+    /// Failed to parse an [`AccountHash`] from a formatted string.
+    #[error("failed to parse {context} as an account hash: {error}")]
+    FailedToParseAccountHash {
         /// Contextual description of where this error occurred.
         context: &'static str,
         /// The actual error raised.
-        error: casper_types::crypto::Error,
+        error: casper_types::account::FromStrError,
     },
 
     /// Failed to parse a [`URef`] from a formatted string.

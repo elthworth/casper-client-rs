@@ -34,6 +34,7 @@ impl ClientCommand for GetAuctionInfo {
             .arg(common::rpc_id::arg(DisplayOrder::RpcId as usize))
             .arg(common::block_identifier::arg(
                 DisplayOrder::BlockIdentifier as usize,
+                true,
             ))
     }
 

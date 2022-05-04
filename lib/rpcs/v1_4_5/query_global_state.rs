@@ -1,25 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-use casper_hashing::Digest;
 use casper_types::{Key, ProtocolVersion};
 
-use crate::types::{BlockHash, BlockHeader, StoredValue};
+pub use crate::rpcs::common::GlobalStateIdentifier;
+use crate::types::{BlockHeader, StoredValue};
 #[cfg(doc)]
 use crate::BlockIdentifier;
 
 pub(crate) const QUERY_GLOBAL_STATE_METHOD: &str = "query_global_state";
-
-/// Identifier for possible ways to query global state.
-///
-/// Soon to be deprecated in favour of [`BlockIdentifier`].
-#[derive(Clone, Serialize, Deserialize, Debug)]
-#[serde(deny_unknown_fields)]
-pub enum GlobalStateIdentifier {
-    /// Query using a block hash.
-    BlockHash(BlockHash),
-    /// Query using the state root hash.
-    StateRootHash(Digest),
-}
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]

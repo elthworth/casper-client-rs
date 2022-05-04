@@ -8,15 +8,15 @@ use serde::{self, Deserialize};
 
 use casper_hashing::Digest;
 use casper_types::{
-    bytesrepr, AsymmetricType, CLType, CLValue, HashAddr, Key, NamedArg, PublicKey, RuntimeArgs,
-    SecretKey, UIntParseError, U512,
+    account::AccountHash, bytesrepr, AsymmetricType, CLType, CLValue, HashAddr, Key, NamedArg,
+    PublicKey, RuntimeArgs, SecretKey, UIntParseError, URef, U512,
 };
 
 use super::{cl_type, CliError, PaymentStrParams, SessionStrParams};
 use crate::{
     crypto::AsymmetricKeyExt,
     types::{BlockHash, DeployHash, ExecutableDeployItem, TimeDiff, Timestamp},
-    BlockIdentifier, JsonRpcId, OutputKind, Verbosity,
+    BlockIdentifier, GlobalStateIdentifier, JsonRpcId, OutputKind, PurseIdentifier, Verbosity,
 };
 
 pub(super) fn rpc_id(maybe_rpc_id: &str) -> JsonRpcId {
@@ -697,6 +697,72 @@ pub(super) fn key_for_query(key: &str) -> Result<Key, CliError> {
     }
 }
 
+/// `maybe_block_id` can be either a block hash or a block height.
+pub(super) fn global_state_identifier(
+    maybe_block_id: &str,
+    maybe_state_root_hash: &str,
+) -> Result<Option<GlobalStateIdentifier>, CliError> {
+    match block_identifier(maybe_block_id)? {
+        Some(BlockIdentifier::Hash(hash)) => {
+            return Ok(Some(GlobalStateIdentifier::BlockHash(hash)))
+        }
+        Some(BlockIdentifier::Height(height)) => {
+            return Ok(Some(GlobalStateIdentifier::BlockHeight(height)))
+        }
+        None => (),
+    }
+
+    if maybe_state_root_hash.is_empty() {
+        return Ok(None);
+    }
+
+    let state_root_hash =
+        Digest::from_hex(maybe_state_root_hash).map_err(|error| CliError::FailedToParseDigest {
+            context: "state root hash in global_state_identifier",
+            error,
+        })?;
+    Ok(Some(GlobalStateIdentifier::StateRootHash(state_root_hash)))
+}
+
+/// `purse_id` can be a formatted public key, account hash, or URef.  It may not be empty.
+pub(super) fn purse_identifier(purse_id: &str) -> Result<PurseIdentifier, CliError> {
+    const ACCOUNT_HASH_PREFIX: &str = "account-hash-";
+    const UREF_PREFIX: &str = "uref-";
+
+    if purse_id.is_empty() {
+        return Err(CliError::InvalidArgument {
+            context: "purse_identifier",
+            error: "cannot be empty string".to_string(),
+        });
+    }
+
+    if purse_id.starts_with(ACCOUNT_HASH_PREFIX) {
+        let account_hash = AccountHash::from_formatted_str(purse_id).map_err(|error| {
+            CliError::FailedToParseAccountHash {
+                context: "purse_identifier",
+                error,
+            }
+        })?;
+        return Ok(PurseIdentifier::MainPurseUnderAccountHash(account_hash));
+    }
+
+    if purse_id.starts_with(UREF_PREFIX) {
+        let uref =
+            URef::from_formatted_str(purse_id).map_err(|error| CliError::FailedToParseURef {
+                context: "purse_identifier",
+                error,
+            })?;
+        return Ok(PurseIdentifier::PurseUref(uref));
+    }
+
+    let public_key =
+        PublicKey::from_hex(purse_id).map_err(|error| CliError::FailedToParsePublicKey {
+            context: "purse_identifier".to_string(),
+            error,
+        })?;
+    Ok(PurseIdentifier::MainPurseUnderPublicKey(public_key))
+}
+
 #[cfg(test)]
 mod tests {
     use casper_types::{
@@ -1237,7 +1303,8 @@ mod tests {
         /// For instance, it is neccesary to check that when `session_path` is set, other arguments
         /// are not.
         ///
-        /// For example, a sample invocation with one test: ```
+        /// For example, a sample invocation with one test:
+        /// ```
         /// impl_test_matrix![
         ///     type: SessionStrParams,
         ///     context: "parse_session_info",
@@ -1251,7 +1318,8 @@ mod tests {
         ///     ]
         /// ];
         /// ```
-        /// This generates the following test module (with the fn name passed), with one test per line in `session_str_params[]`:
+        /// This generates the following test module (with the fn name passed), with one test per
+        /// line in `session_str_params[]`:
         /// ```
         /// #[cfg(test)]
         /// mod session_str_params {

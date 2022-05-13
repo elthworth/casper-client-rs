@@ -1,6 +1,6 @@
 [package]
 name = "casper-client"
-version = "1.4.4" # when updating, also update 'html_root_url' in lib.rs
+version = "1.5.0" # when updating, also update 'html_root_url' in lib.rs
 authors = ["Marc Brinkmann <marc@casperlabs.io>", "Fraser Hutchison <fraser@casperlabs.io>"]
 edition = "2018"
 description = "A client library and binary for interacting with the Casper network"
@@ -24,8 +24,8 @@ doc = false
 async-trait = "0.1.51"
 base16 = "0.2.1"
 base64 = "0.13.0"
-casper-execution-engine = "1.4.4"
-casper-node = "1.4.5"
+casper-execution-engine = "2.0.0"
+casper-node = "1.4.6"
 casper-hashing = "1.4.3"
 casper-types = "1.5.0"
 clap = "2"

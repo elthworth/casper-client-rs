@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.  The format
 
 
 
+## [1.4.5] - 2022-05-13
+
+### Changed
+* Update dependencies.
+
+
+
 ## [1.4.4] - 2022-04-06
 
 ### Changed

@@ -1,6 +1,7 @@
 //! The JSON-RPC request and response types at v1.5.0 of casper-node.
 
 pub(crate) mod get_chainspec;
+pub(crate) mod get_deploy;
 pub(crate) mod get_node_status;
 pub(crate) mod query_balance;
 
@@ -33,11 +34,6 @@ pub(crate) mod get_block_transfers {
     pub(crate) use crate::rpcs::v1_4_5::get_block_transfers::{
         GetBlockTransfersParams, GET_BLOCK_TRANSFERS_METHOD,
     };
-}
-
-pub(crate) mod get_deploy {
-    pub use crate::rpcs::v1_4_5::get_deploy::GetDeployResult;
-    pub(crate) use crate::rpcs::v1_4_5::get_deploy::{GetDeployParams, GET_DEPLOY_METHOD};
 }
 
 pub(crate) mod get_dictionary_item {

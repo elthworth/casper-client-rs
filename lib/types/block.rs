@@ -3,6 +3,7 @@ pub mod v2;
 
 use std::fmt::{self, Display, Formatter};
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use casper_hashing::Digest;
@@ -26,7 +27,18 @@ use crate::types::{DeployHash, EraEnd, Proof, Timestamp};
 /// There are two separate functions to allow for validation of the block given the different
 /// hash mechanisms: [`validate_block_hashes_v1`] and [`validate_block_hashes_v2`].
 #[derive(
-    Copy, Clone, Default, PartialOrd, Ord, PartialEq, Eq, Hash, Serialize, Deserialize, Debug,
+    Copy,
+    Clone,
+    Default,
+    PartialOrd,
+    Ord,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    Debug,
+    JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct BlockHash(Digest);
@@ -322,4 +334,15 @@ impl ToBytes for Block {
             + self.header.serialized_length()
             + self.body.serialized_length()
     }
+}
+
+/// Describes a block's hash and height.
+#[derive(Clone, Copy, Default, Eq, JsonSchema, Serialize, Deserialize, Debug, PartialEq)]
+pub struct BlockHashAndHeight {
+    /// The hash of the block.
+    #[schemars(description = "The hash of this deploy's block.")]
+    pub block_hash: BlockHash,
+    /// The height of the block.
+    #[schemars(description = "The height of this deploy's block.")]
+    pub block_height: u64,
 }

@@ -19,7 +19,8 @@ pub use account::{Account, ActionThresholds, AssociatedKey};
 pub use auction_state::AuctionState;
 pub use block::{
     v1::validate_hashes as validate_block_hashes_v1,
-    v2::validate_hashes as validate_block_hashes_v2, Block, BlockBody, BlockHash, BlockHeader,
+    v2::validate_hashes as validate_block_hashes_v2, Block, BlockBody, BlockHash,
+    BlockHashAndHeight, BlockHeader,
 };
 pub use contract::Contract;
 pub use contract_package::ContractPackage;

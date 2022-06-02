@@ -92,7 +92,7 @@ pub enum Error {
         /// The JSON-RPC request method.
         rpc_method: &'static str,
         /// What kind of Json response was received.
-        response_kind: String,
+        response_kind: &'static str,
         /// The JSON response.
         response: serde_json::Value,
         /// If available, the original error from Serde.

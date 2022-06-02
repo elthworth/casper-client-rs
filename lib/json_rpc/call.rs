@@ -94,7 +94,7 @@ impl Call {
                 serde_json::from_value(json_value).map_err(|err| Error::InvalidRpcResponse {
                     rpc_id: self.rpc_id.clone(),
                     rpc_method: method,
-                    response_kind: response_kind.to_string(),
+                    response_kind,
                     response: json!(rpc_response),
                     source: Some(err),
                 })?;
@@ -113,7 +113,7 @@ impl Call {
         Err(Error::InvalidRpcResponse {
             rpc_id: self.rpc_id.clone(),
             rpc_method: method,
-            response_kind: response_kind.to_string(),
+            response_kind,
             response: json!(rpc_response),
             source: None,
         })

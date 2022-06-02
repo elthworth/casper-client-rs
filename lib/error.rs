@@ -84,7 +84,7 @@ pub enum Error {
 
     /// Invalid response returned from the node.
     #[error(
-        "response for rpc-id {rpc_id} {rpc_method} is not valid because {source:?}: {response}"
+        "response {response_kind} for rpc-id {rpc_id} {rpc_method} is not valid because {source:?}: {response}"
     )]
     InvalidRpcResponse {
         /// The JSON-RPC ID.

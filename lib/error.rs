@@ -83,14 +83,20 @@ pub enum Error {
     },
 
     /// Invalid response returned from the node.
-    #[error("response for rpc-id {rpc_id} {rpc_method} is not valid: {response}")]
+    #[error(
+        "response {response_kind} for rpc-id {rpc_id} {rpc_method} is not valid because {source:?}: {response}"
+    )]
     InvalidRpcResponse {
         /// The JSON-RPC ID.
         rpc_id: JsonRpcId,
         /// The JSON-RPC request method.
         rpc_method: &'static str,
+        /// What kind of Json response was received.
+        response_kind: &'static str,
         /// The JSON response.
         response: serde_json::Value,
+        /// If available, the original error from Serde.
+        source: Option<serde_json::Error>,
     },
 
     /// Failed to encode to JSON.

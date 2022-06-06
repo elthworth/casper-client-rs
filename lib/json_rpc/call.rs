@@ -82,12 +82,21 @@ impl Call {
 
         crate::json_pretty_print(&rpc_response, self.verbosity)?;
 
+        let response_kind = match &rpc_response {
+            JsonRpc::Request(_) => "Request",
+            JsonRpc::Notification(_) => "Notification",
+            JsonRpc::Success(_) => "Success",
+            JsonRpc::Error(_) => "Error",
+        };
+
         if let Some(json_value) = rpc_response.get_result().cloned() {
             let value =
-                serde_json::from_value(json_value).map_err(|_| Error::InvalidRpcResponse {
+                serde_json::from_value(json_value).map_err(|err| Error::InvalidRpcResponse {
                     rpc_id: self.rpc_id.clone(),
                     rpc_method: method,
+                    response_kind,
                     response: json!(rpc_response),
+                    source: Some(err),
                 })?;
             let success_response = SuccessResponse::new(self.rpc_id.clone(), value);
             return Ok(success_response);
@@ -104,7 +113,9 @@ impl Call {
         Err(Error::InvalidRpcResponse {
             rpc_id: self.rpc_id.clone(),
             rpc_method: method,
+            response_kind,
             response: json!(rpc_response),
+            source: None,
         })
     }
 }

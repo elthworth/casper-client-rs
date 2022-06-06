@@ -265,6 +265,68 @@ pub(super) mod public_key {
     }
 }
 
+pub(super) mod purse_identifier {
+    use super::*;
+
+    /// Legacy name of purse identifier argument from when the command was named "get-balance".
+    pub(crate) const PURSE_IDENTIFIER_ALIAS: &str = "purse-uref";
+
+    pub(super) const ARG_NAME: &str = "purse-identifier";
+    const ARG_SHORT: char = 'p';
+    const ARG_VALUE_NAME: &str = "FORMATTED STRING or PATH";
+    const ARG_HELP: &str =
+        "The identifier for the purse. This can be a public key or account hash, implying the main \
+        purse of the given account should be used. Alternatively it can be a purse URef. To \
+        provide a public key, it must be a properly formatted public key. The public key may \
+        be read in from a file, in which case enter the path to the file as the --purse-identifier \
+        argument. The file should be one of the two public key files generated via the `keygen` \
+        subcommand; \"public_key_hex\" or \"public_key.pem\". To provide an account hash, it must \
+        be formatted as \"account-hash-<HEX STRING>\", or for a URef as \
+        \"uref-<HEX STRING>-<THREE DIGIT INTEGER>\"";
+
+    pub fn arg(order: usize, is_required: bool) -> Arg<'static> {
+        Arg::new(ARG_NAME)
+            .alias(PURSE_IDENTIFIER_ALIAS)
+            .long(ARG_NAME)
+            .short(ARG_SHORT)
+            .required(is_required)
+            .value_name(ARG_VALUE_NAME)
+            .help(ARG_HELP)
+            .display_order(order)
+    }
+
+    pub fn get(matches: &ArgMatches) -> Result<String, CliError> {
+        let value = matches.value_of(ARG_NAME).unwrap_or_default();
+        public_key::try_read_from_file(value)
+    }
+}
+
+/// Handles providing the arg for and retrieval of the purse URef.
+pub(super) mod purse_uref {
+    use super::*;
+
+    pub const ARG_NAME: &str = "purse-uref";
+    const ARG_SHORT: char = 'u';
+    const ARG_VALUE_NAME: &str = "FORMATTED STRING";
+    const ARG_HELP: &str =
+        "The URef under which the purse is stored. This must be a properly formatted URef \
+        \"uref-<HEX STRING>-<THREE DIGIT INTEGER>\"";
+
+    pub fn arg(display_order: usize, is_required: bool) -> Arg<'static> {
+        Arg::new(ARG_NAME)
+            .long(ARG_NAME)
+            .short(ARG_SHORT)
+            .required(is_required)
+            .value_name(ARG_VALUE_NAME)
+            .help(ARG_HELP)
+            .display_order(display_order)
+    }
+
+    pub fn get(matches: &ArgMatches) -> Option<&str> {
+        matches.value_of(ARG_NAME)
+    }
+}
+
 /// Handles providing the arg for and retrieval of the session account arg when specifying an
 /// account for a Deploy.
 pub(super) mod session_account {

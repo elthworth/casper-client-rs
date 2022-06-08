@@ -104,7 +104,7 @@ fn cli() -> Command<'static> {
         .subcommand(SendDeploy::build(DisplayOrder::SendDeploy as usize))
         .subcommand(Transfer::build(DisplayOrder::Transfer as usize))
         .subcommand(MakeTransfer::build(DisplayOrder::MakeTransfer as usize))
-        .subcommand(GetBalance::build(DisplayOrder::GetBalance as usize))
+        .subcommand(GetBalance::build(DisplayOrder::GetBalance as usize).hide(true))
         .subcommand(GetDeploy::build(DisplayOrder::GetDeploy as usize))
         .subcommand(GetBlock::build(DisplayOrder::GetBlock as usize))
         .subcommand(GetBlockTransfers::build(

@@ -404,15 +404,15 @@ cargo run --release -- query-global-state \
 This yields details of the newly-created account object, including the `URef` of the account's main purse.
 
 
-### Get the balance of a purse
+### Query the balance of a purse
 
-This can be done via `get-balance`. For example, to get the balance of the main purse of our newly-created account:
+This can be done via `query-balance`. For example, to get the balance of the main purse of our newly-created account:
 
 ```
-cargo run --release -- get-balance \
+cargo run --release -- query-balance \
     --node-address=http://localhost:11101 \
     --state-root-hash=242666f5959e6a51b7a75c23264f3cb326eecd6bec6dbab147f5801ec23daed6 \
-    --purse-uref=uref-09480c3248ef76b603d386f3f4f8a5f87f597d4eaffd475433f861af187ab5db-007
+    --purse-identifier=account-hash-f7196ed0f4a4aa2aae02daa8f0bdad39ed3098c028979db4f96c3c25670a8240
 ```
 
 <details><summary>example output</summary>

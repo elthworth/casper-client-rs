@@ -6,6 +6,7 @@ mod deploy;
 mod generate_completion;
 mod get_account;
 mod get_auction_info;
+mod get_balance;
 mod get_chainspec;
 mod get_dictionary_item;
 mod get_era_info;
@@ -21,6 +22,7 @@ mod query_global_state;
 use std::process;
 
 use clap::{crate_version, Command};
+use get_balance::GetBalance;
 use once_cell::sync::Lazy;
 
 use casper_client::{cli, rpcs::results::GetChainspecResult, SuccessResponse};
@@ -71,6 +73,7 @@ enum DisplayOrder {
     Transfer,
     MakeTransfer,
     GetDeploy,
+    GetBalance,
     GetBlock,
     GetBlockTransfers,
     ListDeploys,
@@ -101,6 +104,7 @@ fn cli() -> Command<'static> {
         .subcommand(SendDeploy::build(DisplayOrder::SendDeploy as usize))
         .subcommand(Transfer::build(DisplayOrder::Transfer as usize))
         .subcommand(MakeTransfer::build(DisplayOrder::MakeTransfer as usize))
+        .subcommand(GetBalance::build(DisplayOrder::GetBalance as usize).hide(true))
         .subcommand(GetDeploy::build(DisplayOrder::GetDeploy as usize))
         .subcommand(GetBlock::build(DisplayOrder::GetBlock as usize))
         .subcommand(GetBlockTransfers::build(
@@ -151,6 +155,7 @@ async fn main() {
         Transfer::NAME => Transfer::run(matches).await,
         MakeTransfer::NAME => MakeTransfer::run(matches).await,
         GetDeploy::NAME => GetDeploy::run(matches).await,
+        GetBalance::NAME => GetBalance::run(matches).await,
         GetBlock::NAME => GetBlock::run(matches).await,
         GetBlockTransfers::NAME => GetBlockTransfers::run(matches).await,
         ListDeploys::NAME => ListDeploys::run(matches).await,

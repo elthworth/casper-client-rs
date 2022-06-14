@@ -1,7 +1,7 @@
-use std::{fs::File, path::PathBuf, process, str::FromStr};
+use std::{fs::File, path::PathBuf, process};
 
 use async_trait::async_trait;
-use clap::{crate_name, Arg, ArgMatches, Command};
+use clap::{crate_name, value_parser, Arg, ArgMatches, Command};
 use clap_complete::Shell;
 
 use casper_client::{cli::CliError, Error};
@@ -40,7 +40,7 @@ mod output_dir {
 
     pub(super) fn get(matches: &ArgMatches) -> PathBuf {
         matches
-            .value_of(ARG_NAME)
+            .get_one::<String>(ARG_NAME)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
             .into()
     }
@@ -60,19 +60,16 @@ mod shell {
             .long(ARG_NAME)
             .required(false)
             .default_value(ARG_DEFAULT)
-            .possible_values(Shell::possible_values())
+            .value_parser(value_parser!(Shell))
             .value_name(ARG_VALUE_NAME)
             .help(ARG_HELP)
             .display_order(DisplayOrder::Shell as usize)
     }
 
     pub fn get(matches: &ArgMatches) -> Shell {
-        Shell::from_str(
-            matches
-                .value_of(ARG_NAME)
-                .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME)),
-        )
-        .unwrap_or_else(|error| panic!("invalid value for --{}: {}", ARG_NAME, error))
+        *matches
+            .get_one::<Shell>(ARG_NAME)
+            .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
     }
 }
 

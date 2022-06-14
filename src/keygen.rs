@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap::{Arg, ArgMatches, Command};
+use clap::{builder::PossibleValuesParser, Arg, ArgMatches, Command};
 use once_cell::sync::Lazy;
 
 use casper_client::{
@@ -45,7 +45,10 @@ mod output_dir {
     }
 
     pub(super) fn get(matches: &ArgMatches) -> String {
-        matches.value_of(ARG_NAME).unwrap_or(".").to_string()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .cloned()
+            .unwrap_or_else(|| ".".to_string())
     }
 }
 
@@ -64,8 +67,10 @@ mod algorithm {
             .short(ARG_SHORT)
             .required(false)
             .default_value(keygen::ED25519)
-            .possible_value(keygen::ED25519)
-            .possible_value(keygen::SECP256K1)
+            .value_parser(PossibleValuesParser::new([
+                keygen::ED25519,
+                keygen::SECP256K1,
+            ]))
             .value_name(ARG_VALUE_NAME)
             .help(ARG_HELP)
             .display_order(DisplayOrder::Algorithm as usize)
@@ -73,7 +78,8 @@ mod algorithm {
 
     pub fn get(matches: &ArgMatches) -> &str {
         matches
-            .value_of(ARG_NAME)
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
     }
 }

@@ -3,7 +3,7 @@
 
 use std::process;
 
-use clap::{Arg, ArgGroup, ArgMatches, Command};
+use clap::{Arg, ArgAction, ArgGroup, ArgMatches, Command};
 
 use casper_client::cli::{help, PaymentStrParams, SessionStrParams};
 
@@ -63,19 +63,19 @@ pub(super) mod show_arg_examples {
             .long(ARG_NAME)
             .short(ARG_SHORT)
             .required(false)
+            .action(ArgAction::SetTrue)
             .help(ARG_HELP)
             .display_order(DisplayOrder::ShowArgExamples as usize)
     }
 
     pub(in crate::deploy) fn get(matches: &ArgMatches) -> bool {
-        if !matches.is_present(ARG_NAME) {
-            return false;
+        if let Some(true) = matches.get_one::<bool>(ARG_NAME) {
+            println!("Examples for passing values via --session-arg or --payment-arg:");
+            println!("{}", help::supported_cl_type_examples());
+            return true;
         }
 
-        println!("Examples for passing values via --session-arg or --payment-arg:");
-        println!("{}", help::supported_cl_type_examples());
-
-        true
+        false
     }
 }
 
@@ -205,7 +205,10 @@ pub(super) mod timestamp {
     }
 
     pub(in crate::deploy) fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default()
     }
 }
 
@@ -233,7 +236,10 @@ pub(super) mod ttl {
     }
 
     pub(in crate::deploy) fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default()
     }
 }
 
@@ -258,7 +264,8 @@ pub(super) mod chain_name {
 
     pub(in crate::deploy) fn get(matches: &ArgMatches) -> &str {
         matches
-            .value_of(ARG_NAME)
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
     }
 }
@@ -283,7 +290,7 @@ pub(super) mod session_path {
     }
 
     pub(in crate::deploy) fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -317,7 +324,11 @@ pub(super) mod arg_simple {
         }
 
         pub fn get(matches: &ArgMatches) -> Vec<&str> {
-            matches.values_of(ARG_NAME).into_iter().flatten().collect()
+            matches
+                .get_many::<String>(ARG_NAME)
+                .unwrap_or_default()
+                .map(|simple_session_arg| simple_session_arg.as_str())
+                .collect()
         }
     }
 
@@ -332,7 +343,11 @@ pub(super) mod arg_simple {
         }
 
         pub fn get(matches: &ArgMatches) -> Vec<&str> {
-            matches.values_of(ARG_NAME).into_iter().flatten().collect()
+            matches
+                .get_many::<String>(ARG_NAME)
+                .unwrap_or_default()
+                .map(|simple_payment_arg| simple_payment_arg.as_str())
+                .collect()
         }
     }
 
@@ -340,7 +355,7 @@ pub(super) mod arg_simple {
         Arg::new(name)
             .long(name)
             .required(false)
-            .multiple_occurrences(true)
+            .action(ArgAction::Append)
             .value_name(ARG_VALUE_NAME)
             .help(ARG_HELP.as_str())
             .display_order(order)
@@ -368,7 +383,10 @@ pub(super) mod args_complex {
         }
 
         pub fn get(matches: &ArgMatches) -> &str {
-            matches.value_of(ARG_NAME).unwrap_or_default()
+            matches
+                .get_one::<String>(ARG_NAME)
+                .map(String::as_str)
+                .unwrap_or_default()
         }
     }
 
@@ -383,7 +401,10 @@ pub(super) mod args_complex {
         }
 
         pub fn get(matches: &ArgMatches) -> &str {
-            matches.value_of(ARG_NAME).unwrap_or_default()
+            matches
+                .get_one::<String>(ARG_NAME)
+                .map(String::as_str)
+                .unwrap_or_default()
         }
     }
 
@@ -415,7 +436,7 @@ pub(super) mod payment_path {
     }
 
     pub fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -442,7 +463,7 @@ pub(super) mod standard_payment_amount {
     }
 
     pub fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -567,7 +588,7 @@ pub(super) mod output {
     }
 
     pub fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -591,7 +612,8 @@ pub(super) mod input {
 
     pub fn get(matches: &ArgMatches) -> &str {
         matches
-            .value_of(ARG_NAME)
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
     }
 }
@@ -614,7 +636,7 @@ pub(super) mod session_hash {
     }
 
     pub fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -636,7 +658,7 @@ pub(super) mod session_name {
     }
 
     pub fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -649,13 +671,17 @@ pub(super) mod is_session_transfer {
     pub fn arg() -> Arg<'static> {
         Arg::new(ARG_NAME)
             .long(ARG_NAME)
+            .action(ArgAction::SetTrue)
             .help(ARG_HELP)
             .required(false)
             .display_order(DisplayOrder::SessionTransfer as usize)
     }
 
     pub fn get(matches: &ArgMatches) -> bool {
-        matches.is_present(ARG_NAME)
+        matches
+            .get_one::<bool>(ARG_NAME)
+            .copied()
+            .unwrap_or_default()
     }
 }
 
@@ -677,7 +703,7 @@ pub(super) mod session_package_hash {
     }
 
     pub fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -699,7 +725,7 @@ pub(super) mod session_package_name {
     }
 
     pub fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -720,7 +746,10 @@ pub(super) mod session_entry_point {
     }
 
     pub fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default()
     }
 }
 
@@ -741,7 +770,10 @@ pub(super) mod session_version {
     }
 
     pub fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default()
     }
 }
 
@@ -763,7 +795,7 @@ pub(super) mod payment_hash {
     }
 
     pub fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -786,7 +818,7 @@ pub(super) mod payment_name {
     }
 
     pub fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -808,7 +840,7 @@ pub(super) mod payment_package_hash {
     }
 
     pub fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -830,7 +862,7 @@ pub(super) mod payment_package_name {
     }
 
     pub fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -851,7 +883,10 @@ pub(super) mod payment_entry_point {
     }
 
     pub fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default()
     }
 }
 
@@ -872,6 +907,9 @@ pub(super) mod payment_version {
     }
 
     pub fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default()
     }
 }

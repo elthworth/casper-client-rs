@@ -35,7 +35,8 @@ mod deploy_hash {
 
     pub(super) fn get(matches: &ArgMatches) -> &str {
         matches
-            .value_of(ARG_NAME)
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
     }
 }

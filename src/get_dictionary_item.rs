@@ -47,7 +47,10 @@ mod key {
     }
 
     pub(super) fn get(arg_name: &'static str, matches: &ArgMatches) -> Result<String, CliError> {
-        let value = matches.value_of(arg_name).unwrap_or_default();
+        let value = matches
+            .get_one::<String>(arg_name)
+            .map(String::as_str)
+            .unwrap_or_default();
 
         // Try to read as a PublicKey PEM file first.
         if let Ok(public_key) = PublicKey::from_file(value) {
@@ -126,7 +129,10 @@ mod dictionary_name {
     }
 
     pub(super) fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default()
     }
 }
 
@@ -148,7 +154,10 @@ mod dictionary_item_key {
     }
 
     pub(super) fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default()
     }
 }
 
@@ -171,7 +180,10 @@ mod seed_uref {
     }
 
     pub(super) fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default()
     }
 }
 
@@ -193,7 +205,10 @@ mod dictionary_address {
     }
 
     pub(super) fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default()
     }
 }
 

@@ -1,6 +1,6 @@
 use std::fs;
 
-use clap::{Arg, ArgMatches};
+use clap::{Arg, ArgAction, ArgMatches};
 
 use casper_client::cli::CliError;
 use casper_types::PublicKey;
@@ -24,16 +24,15 @@ pub mod verbose {
         Arg::new(ARG_NAME)
             .short(ARG_NAME_SHORT)
             .required(false)
-            .multiple_occurrences(true)
+            .action(ArgAction::Count)
             .help(ARG_HELP)
             .display_order(order)
     }
 
     pub fn get(matches: &ArgMatches) -> u64 {
-        if matches.is_valid_arg(ARG_NAME) {
-            matches.occurrences_of(ARG_NAME)
-        } else {
-            0
+        match matches.try_get_one::<u8>(ARG_NAME) {
+            Ok(maybe_count) => maybe_count.copied().unwrap_or_default() as u64,
+            Err(_) => 0,
         }
     }
 }
@@ -61,7 +60,8 @@ pub mod node_address {
 
     pub fn get(matches: &ArgMatches) -> &str {
         matches
-            .value_of(ARG_NAME)
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
     }
 }
@@ -86,7 +86,10 @@ pub mod rpc_id {
     }
 
     pub fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default()
     }
 }
 
@@ -110,7 +113,8 @@ pub mod secret_key {
 
     pub fn get(matches: &ArgMatches) -> &str {
         matches
-            .value_of(ARG_NAME)
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME))
     }
 }
@@ -133,6 +137,7 @@ pub mod force {
             .long(ARG_NAME)
             .short(ARG_SHORT)
             .required(false)
+            .action(ArgAction::SetTrue)
             .help(if singular {
                 ARG_HELP_SINGULAR
             } else {
@@ -142,7 +147,10 @@ pub mod force {
     }
 
     pub fn get(matches: &ArgMatches) -> bool {
-        matches.is_present(ARG_NAME)
+        matches
+            .get_one::<bool>(ARG_NAME)
+            .copied()
+            .unwrap_or_default()
     }
 }
 
@@ -166,7 +174,7 @@ pub mod state_root_hash {
     }
 
     pub(crate) fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -197,7 +205,10 @@ pub mod block_identifier {
     }
 
     pub(crate) fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default()
     }
 }
 
@@ -228,13 +239,16 @@ pub(super) mod public_key {
     }
 
     pub fn get(matches: &ArgMatches, is_required: bool) -> Result<String, CliError> {
-        let value = matches.value_of(ARG_NAME).unwrap_or_else(|| {
-            if is_required {
-                panic!("should have {} arg", ARG_NAME)
-            } else {
-                ""
-            }
-        });
+        let value = matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_else(|| {
+                if is_required {
+                    panic!("should have {} arg", ARG_NAME)
+                } else {
+                    ""
+                }
+            });
         try_read_from_file(value)
     }
 
@@ -296,7 +310,10 @@ pub(super) mod purse_identifier {
     }
 
     pub fn get(matches: &ArgMatches) -> Result<String, CliError> {
-        let value = matches.value_of(ARG_NAME).unwrap_or_default();
+        let value = matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default();
         public_key::try_read_from_file(value)
     }
 }
@@ -323,7 +340,7 @@ pub(super) mod purse_uref {
     }
 
     pub fn get(matches: &ArgMatches) -> Option<&str> {
-        matches.value_of(ARG_NAME)
+        matches.get_one::<String>(ARG_NAME).map(String::as_str)
     }
 }
 
@@ -351,7 +368,10 @@ pub(super) mod session_account {
     }
 
     pub fn get(matches: &ArgMatches) -> Result<String, CliError> {
-        let value = matches.value_of(ARG_NAME).unwrap_or_default();
+        let value = matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default();
         super::public_key::try_read_from_file(value)
     }
 }

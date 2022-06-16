@@ -61,7 +61,8 @@ mod key {
 
     pub(crate) fn get(matches: &ArgMatches) -> Result<String, CliError> {
         let value = matches
-            .value_of(ARG_NAME)
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
             .unwrap_or_else(|| panic!("should have {} arg", ARG_NAME));
 
         // Try to read as a PublicKey PEM file first.
@@ -109,7 +110,10 @@ mod path {
     }
 
     pub(crate) fn get(matches: &ArgMatches) -> &str {
-        matches.value_of(ARG_NAME).unwrap_or_default()
+        matches
+            .get_one::<String>(ARG_NAME)
+            .map(String::as_str)
+            .unwrap_or_default()
     }
 }
 

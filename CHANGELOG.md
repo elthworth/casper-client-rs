@@ -39,6 +39,13 @@ All notable changes to this project will be documented in this file.  The format
 
 
 
+## [1.5.0] - 2022-05-13
+
+### Changed
+* Update dependencies.
+
+
+
 ## [1.4.4] - 2022-04-06
 
 ### Changed
@@ -167,7 +174,8 @@ No changes.
 
 
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0
-[unreleased]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.4...main
+[unreleased]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.5.0...main
+[1.5.0]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.5...v1.5.0
 [1.4.4]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.3...v1.4.4
 [1.4.3]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/casper-ecosystem/casper-client-rs/compare/v1.4.1...v1.4.2
